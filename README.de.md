@@ -52,14 +52,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.4_all.deb
+sudo apt install ./auth-switch_0.3.5_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.4-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.5-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -101,6 +101,17 @@ Ausschalten verweigert dem Token den Zugriff darauf mit der Rolle *NoAccess*,
 die weiter gefasste Rechte wie eine Rolle auf `/` übersteuert; Einschalten
 entfernt diesen Eintrag wieder. Wie bei den Rollen geschieht das mit einem
 anderen Konto des Servers, auswählbar unten im Dropdown.
+
+Der MCP-Server hält sich zusätzlich selbst an diese Sperren: Er lehnt Aufrufe
+ab, die einen gesperrten Gast, Speicher oder Knoten betreffen, und lässt sie in
+Listen weg. Das wirkt auch bei einem Token ohne Privilegientrennung, das der
+Server nicht einschränkt – aber nur für den MCP-Server, nicht für
+`auth-switch exec` oder andere Werkzeuge. Für ein solches Token erteilt **Auf
+dem Server durchsetzen** ihm *Administrator* auf `/` und schaltet danach die
+Privilegientrennung ein: Es behält alle Rechte, und seine Sperren gelten für
+jeden Zugriff. Ein Token, das sich selbst etwas gesperrt hat, darf dort keine
+Rechte mehr ändern; zum Aufheben schaltet Auth-Switch die Privilegientrennung
+kurz aus und wieder ein.
 
 ## Server ohne Abonnement
 

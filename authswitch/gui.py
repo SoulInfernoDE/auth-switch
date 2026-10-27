@@ -343,8 +343,27 @@ class Window(Adw.ApplicationWindow):
         icons = {"qemu": "computer-symbolic", "lxc": "package-x-generic-symbolic", "storage": "drive-harddisk-symbolic", "node": "network-server-symbolic"}
         kinds = {"qemu": _("Virtual machine"), "lxc": _("Container"), "storage": _("Storage"), "node": _("Node")}
 
+        state = {"privsep": True, "server": set()}
+        enforce = Gtk.Button(label=_("Enforce on the server"), visible=False, halign=Gtk.Align.START)
+        enforce.set_tooltip_text(_("Grants the token Administrator on / and turns on privilege separation"))
+        box.insert_child_after(enforce, status)
+
         def manager() -> core.Account:
             return managers[chooser.get_selected()]
+
+        def enforced(_result, error):
+            enforce.set_sensitive(True)
+            if error:
+                self.explain(_("Blocks could not be enforced on the server"), str(error))
+            else:
+                self.toast(_("Blocks of {token} now apply to every access").format(token=account.token_id), "success")
+            load()
+
+        def enforce_on_server(*_args):
+            enforce.set_sensitive(False)
+            run_async(lambda: core.enable_server_blocking(account.host, account.token_id, manager()), enforced)
+
+        enforce.connect("clicked", enforce_on_server)
 
         def toggled(switch, _pspec, path):
             if getattr(switch, "busy", False):
@@ -363,7 +382,10 @@ class Window(Adw.ApplicationWindow):
                     text = _("Access to {path} denied") if denied else _("Access to {path} allowed")
                     self.toast(text.format(path=path), "signout" if denied else "switch")
 
-            run_async(lambda: core.set_denied(account.host, account.token_id, path, denied, manager()), done)
+            run_async(
+                lambda: core.set_access(account.host, account.token_id, path, denied, manager(), state["privsep"], state["server"]),
+                done,
+            )
 
         def loaded(result, error):
             while (child := rows.get_first_child()) is not None:
@@ -371,8 +393,17 @@ class Window(Adw.ApplicationWindow):
             if error:
                 status.set_label(str(error))
                 return
-            resources, denied, privsep = result
-            status.set_label("" if privsep else _("This token has no privilege separation, so denying access has no effect."))
+            resources, server_denied, privsep = result
+            state.update(privsep=privsep, server=server_denied)
+            core.adopt_server_blocks(account.host, account.token_id, server_denied)
+            denied = core.local_blocks(account.host, account.token_id)
+            status.set_label(
+                "" if privsep else _(
+                    "Without privilege separation the server does not enforce these blocks; only the MCP server of "
+                    "Auth-Switch keeps to them."
+                )
+            )
+            enforce.set_visible(not privsep)
             for resource in resources:
                 row = Adw.ActionRow(title=resource["label"], subtitle=kinds[resource["kind"]], use_markup=False)
                 row.add_prefix(Gtk.Image(icon_name=icons[resource["kind"]]))

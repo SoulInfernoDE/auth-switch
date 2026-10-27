@@ -219,6 +219,64 @@ class AccountTest(unittest.TestCase):
             self.assertEqual(core.upgrade_via_ssh("pve.example.com:8006"), {"reboot": True, "version": "pve-manager/8.4.1/2a5fa54a8503f96d (running kernel: 6.8.12-9-pve)"})
         self.assertIn("dist-upgrade", run.call_args.args[1])
 
+    def test_local_blocks_are_enforced_for_the_mcp_server(self):
+        account = core.find_account(TOKEN)
+        core.set_access(account.host, TOKEN, "/vms/101", True, account, privsep=False, server_denied=set())
+        core.set_access(account.host, TOKEN, "/storage/backup", True, account, privsep=False, server_denied=set())
+        self.assertEqual(core.local_blocks(account.host, TOKEN), {"/vms/101", "/storage/backup"})
+        resources = [{"vmid": 100, "type": "qemu"}, {"vmid": 101, "type": "qemu"}, {"storage": "backup", "type": "storage"}]
+        with mock.patch.object(core, "request", return_value=resources) as request:
+            self.assertEqual(core.api("GET", "/cluster/resources"), [{"vmid": 100, "type": "qemu"}])
+            for path, params in (
+                ("/nodes/pve/qemu/101/status/start", None),
+                ("/nodes/pve/lxc/101/config", None),
+                ("/nodes/pve/vzdump", {"vmid": "100,101"}),
+                ("/nodes/pve/storage/backup/content", None),
+                ("/nodes/pve/qemu/100/clone", {"newid": 101}),
+            ):
+                with self.assertRaises(core.AuthError, msg=path):
+                    core.api("POST", path, params)
+            core.api("POST", "/nodes/pve/qemu/100/status/start")
+        self.assertEqual(request.call_count, 2)
+        core.set_access(account.host, TOKEN, "/vms/101", False, account, privsep=False, server_denied=set())
+        self.assertEqual(core.local_blocks(account.host, TOKEN), {"/storage/backup"})
+
+    def test_server_blocks_are_adopted(self):
+        account = core.find_account(TOKEN)
+        core.adopt_server_blocks(account.host, TOKEN, {"/vms/100"})
+        self.assertEqual(core.local_blocks(account.host, TOKEN), {"/vms/100"})
+        with mock.patch.object(core, "request") as request:
+            core.set_access(account.host, TOKEN, "/vms/100", False, account, privsep=False, server_denied={"/vms/100"})
+        self.assertTrue(request.call_args.args[5]["delete"])
+        self.assertEqual(core.local_blocks(account.host, TOKEN), set())
+
+    def test_a_token_can_lift_its_own_block(self):
+        account = core.find_account(TOKEN)
+        calls = []
+
+        def fake(host, token, secret, method, path, params=None, fingerprint=None):
+            calls.append((method, path, dict(params or {})))
+            privsep = [c[2]["privsep"] for c in calls if "privsep" in c[2]]
+            if path == "/access/acl" and params.get("delete") and (not privsep or privsep[-1]):
+                raise core.AuthError("HTTP 403 Permission check failed (/vms/101, Permissions.Modify|VM.Allocate)")
+
+        with mock.patch.object(core, "request", side_effect=fake):
+            core.set_access(account.host, TOKEN, "/vms/101", False, account, privsep=True, server_denied={"/vms/101"})
+        steps = [(m, p, c.get("privsep", c.get("delete"))) for m, p, c in calls]
+        self.assertEqual(steps, [
+            ("PUT", "/access/acl", True),
+            ("PUT", "/access/users/root@pam/token/automation", False),
+            ("PUT", "/access/acl", True),
+            ("PUT", "/access/users/root@pam/token/automation", True),
+        ])
+
+    def test_enforce_on_server_checks_the_role_first(self):
+        account = core.find_account(TOKEN)
+        with mock.patch.object(core, "request", return_value=[]) as request:
+            with self.assertRaises(core.AuthError):
+                core.enable_server_blocking(account.host, TOKEN, account)
+        self.assertFalse(any("privsep" in (c.args[5] or {}) for c in request.call_args_list if len(c.args) > 5))
+
     def test_mcp_tools(self):
         names = [tool["name"] for tool in mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]]
         self.assertEqual(

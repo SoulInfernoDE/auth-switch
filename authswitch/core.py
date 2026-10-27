@@ -98,6 +98,11 @@ def _load() -> dict[str, dict]:
                 "active": str(entry.get("active") or ""),
                 "fingerprint": str(entry.get("fingerprint") or ""),
                 "repository": str(entry.get("repository") or ""),
+                "blocked": {
+                    str(token): sorted({str(path) for path in paths})
+                    for token, paths in (entry.get("blocked") or {}).items()
+                    if isinstance(paths, list)
+                } if isinstance(entry.get("blocked"), dict) else {},
             }
     return hosts
 
@@ -362,7 +367,7 @@ def add_account(host: str, token_id: str, secret: str, fingerprint: str = "") ->
         raise AuthError(profile.detail or _("{host} did not answer like a Proxmox VE server.").format(host=host))
     store_secret(host, token_id, secret)
     hosts = _load()
-    entry = hosts.setdefault(host, {"tokens": [], "active": "", "fingerprint": "", "repository": ""})
+    entry = hosts.setdefault(host, {"tokens": [], "active": "", "fingerprint": "", "repository": "", "blocked": {}})
     if token_id not in entry["tokens"]:
         entry["tokens"].append(token_id)
     entry["active"], entry["fingerprint"] = token_id, fingerprint
@@ -431,7 +436,8 @@ def _active_secret(account: Account) -> str:
 def api(method: str, path: str, params: dict | None = None, host: str | None = None) -> object:
     """Call the API of a server as its active account."""
     account = active_account(host)
-    return request(account.host, account.token_id, _active_secret(account), method, path, params)
+    check_blocked(account, path, params)
+    return filter_blocked(account, request(account.host, account.token_id, _active_secret(account), method, path, params))
 
 
 # --- token permissions ------------------------------------------------------
@@ -526,6 +532,114 @@ def set_denied(host: str, token_id: str, path: str, denied: bool, manager: Accou
     if not denied:
         params["delete"] = True
     request(host, manager.token_id, _active_secret(manager), "PUT", "/access/acl", params)
+
+
+def local_blocks(host: str, token_id: str) -> set[str]:
+    """Paths the MCP server refuses for this token, whatever the server enforces."""
+    return set(_load().get(host, {}).get("blocked", {}).get(token_id, []))
+
+
+def _store_local_block(host: str, token_id: str, path: str, blocked: bool) -> None:
+    hosts = _load()
+    if host not in hosts:
+        return
+    paths = set(hosts[host]["blocked"].get(token_id, []))
+    paths = paths | {path} if blocked else paths - {path}
+    hosts[host]["blocked"][token_id] = sorted(paths)
+    _write_private(accounts_file(), hosts)
+
+
+def adopt_server_blocks(host: str, token_id: str, server_denied: set[str]) -> None:
+    """Take blocks set on the server (e.g. in the web interface) into the local list, so the MCP server keeps to them."""
+    for path in server_denied - local_blocks(host, token_id):
+        _store_local_block(host, token_id, path, True)
+
+
+def _set_privsep(host: str, token_id: str, enabled: bool, manager: Account) -> None:
+    request(host, manager.token_id, _active_secret(manager), "PUT", _token_path(token_id), {"privsep": enabled})
+
+
+def set_access(host: str, token_id: str, path: str, denied: bool, manager: Account, privsep: bool, server_denied: set[str]) -> None:
+    """Block or allow ``path`` for the token: always for the MCP server, and on the server when that takes effect.
+
+    A token that blocked a path for itself also lost the right to change permissions there. To lift such a block
+    it briefly drops privilege separation, which gives it its user's rights back, and turns it on again.
+    """
+    _store_local_block(host, token_id, path, denied)
+    if denied and privsep:
+        set_denied(host, token_id, path, True, manager)
+    elif not denied and path in server_denied:
+        try:
+            set_denied(host, token_id, path, False, manager)
+        except AuthError as error:
+            if not str(error).startswith("HTTP 403") or manager.token_id != token_id or not privsep:
+                raise
+            _set_privsep(host, token_id, False, manager)
+            try:
+                set_denied(host, token_id, path, False, manager)
+            finally:
+                _set_privsep(host, token_id, True, manager)
+
+
+def enable_server_blocking(host: str, token_id: str, manager: Account) -> None:
+    """Give the token Administrator on "/" and then privilege separation, so NoAccess blocks take effect.
+
+    The token keeps all rights; the role is checked to be in place before separation is turned on, so the
+    token never ends up without rights.
+    """
+    secret = _active_secret(manager)
+    params = {"path": "/", "roles": "Administrator", "tokens": token_id, "propagate": True}
+    request(host, manager.token_id, secret, "PUT", "/access/acl", params)
+    acl = request(host, manager.token_id, secret, "GET", "/access/acl") or []
+    if not any(e.get("type") == "token" and e.get("ugid") == token_id and e.get("path") == "/" and e.get("roleid") == "Administrator" for e in acl):
+        raise AuthError(_("The Administrator role could not be granted; privilege separation was left off."))
+    _set_privsep(host, token_id, True, manager)
+    for path in local_blocks(host, token_id):
+        set_denied(host, token_id, path, True, manager)
+
+
+def _blocked_targets(account: Account) -> tuple[set[str], set[str], set[str]]:
+    vms, storages, nodes = set(), set(), set()
+    for path in local_blocks(account.host, account.token_id):
+        kind, _sep, name = path.strip("/").partition("/")
+        {"vms": vms, "storage": storages, "nodes": nodes}.get(kind, set()).add(name)
+    return vms, storages, nodes
+
+
+def check_blocked(account: Account, path: str, params: dict | None) -> None:
+    """Refuse API calls that touch a resource the user blocked for this token."""
+    vms, storages, nodes = _blocked_targets(account)
+    params = params or {}
+    target = path.split("?", 1)[0]
+    query = dict(urllib.parse.parse_qsl(path.split("?", 1)[1])) if "?" in path else {}
+    values = {**query, **{key: str(value) for key, value in params.items()}}
+    named_vms = set(str(values.get("vmid", "")).split(",")) | {str(values.get("newid", ""))}
+    hits = [f"/vms/{vm}" for vm in vms if re.search(rf"/(?:qemu|lxc)/{re.escape(vm)}(?:/|$)", target) or vm in named_vms]
+    hits += [f"/storage/{st}" for st in storages if re.search(rf"/storage/{re.escape(st)}(?:/|$)", target) or values.get("storage") == st]
+    hits += [
+        f"/nodes/{node}" for node in nodes
+        if target == f"/nodes/{node}" or target.startswith(f"/nodes/{node}/") or node in (values.get("node"), values.get("target"))
+    ]
+    if hits:
+        raise AuthError(_("Blocked for this account in Auth-Switch: {path}").format(path=hits[0]))
+
+
+def filter_blocked(account: Account, data: object) -> object:
+    """Leave blocked guests, storages and nodes out of list results."""
+    vms, storages, nodes = _blocked_targets(account)
+    if not isinstance(data, list) or not (vms or storages or nodes):
+        return data
+
+    def hidden(item: object) -> bool:
+        if not isinstance(item, dict):
+            return False
+        return (
+            str(item.get("vmid", "")) in vms
+            or (item.get("storage") in storages and item.get("type") in (None, "storage"))
+            or item.get("node") in nodes
+        )
+
+    return [item for item in data if not hidden(item)]
 
 
 # --- subscription and package repositories ---------------------------------

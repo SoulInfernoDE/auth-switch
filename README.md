@@ -51,14 +51,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.3.4_all.deb
+sudo apt install ./auth-switch_0.3.5_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.4-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.5-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -98,6 +98,16 @@ the token access to it with the *NoAccess* role, which overrides broader
 rights such as a role on `/`; switching it on again removes that entry. Like
 the roles, this is changed with another account of the server, selectable at
 the bottom of the drop-down.
+
+The MCP server keeps to these blocks itself as well: it refuses calls that touch
+a blocked guest, storage or node and leaves them out of lists. That also works
+for a token without privilege separation, which the server does not restrict –
+but only for the MCP server, not for `auth-switch exec` or other tools. For
+such a token **Enforce on the server** grants it *Administrator* on `/` and then
+turns on privilege separation: it keeps all rights, and its blocks apply to
+every access. A token that blocked a resource for itself loses the right to
+change permissions there; to lift the block, Auth-Switch briefly turns privilege
+separation off and on again.
 
 ## Servers without a subscription
 
