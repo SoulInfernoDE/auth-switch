@@ -908,6 +908,7 @@ def node_updates(host: str, manager: Account, refresh: bool = False) -> list[dic
                 wait_for_task(host, name, upid, manager)
         status = request(host, manager.token_id, secret, "GET", f"/nodes/{name}/status") or {}
         updates = request(host, manager.token_id, secret, "GET", f"/nodes/{name}/apt/update") or []
+        versions = request(host, manager.token_id, secret, "GET", f"/nodes/{name}/apt/versions") or []
         version = str(status.get("pveversion") or "").split("/")
         result.append({
             "node": name,
@@ -915,8 +916,27 @@ def node_updates(host: str, manager: Account, refresh: bool = False) -> list[dic
             "updates": len(updates),
             "packages": sorted(str(update.get("Package", "")) for update in updates),
             "local": name in local,
+            "reboot": newer_kernel_installed(status, versions),
         })
     return sorted(result, key=lambda entry: entry["node"])
+
+
+_KERNEL_PACKAGE = re.compile(r"^(?:proxmox|pve)-kernel-(\d+\.\d+\.\d+-\d+)-pve(?:-signed)?$")
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in re.findall(r"\d+", version))
+
+
+def newer_kernel_installed(status: dict, versions: list) -> bool:
+    """Whether a kernel newer than the running one is installed, i.e. a reboot is pending."""
+    running = str((status.get("current-kernel") or {}).get("release") or "").removesuffix("-pve")
+    installed = [
+        match.group(1)
+        for package in versions
+        if package.get("CurrentState") == "Installed" and (match := _KERNEL_PACKAGE.match(str(package.get("Package", ""))))
+    ]
+    return bool(running and installed) and max(map(_version_key, installed)) > _version_key(running)
 
 
 UPGRADE_SCRIPT = r"""set -e
@@ -937,6 +957,46 @@ def upgrade_via_ssh(host: str) -> dict:
         "reboot": "AUTH-SWITCH-REBOOT" in lines,
         "version": next((line for line in reversed(lines) if line.startswith("pve-manager/")), ""),
     }
+
+
+def running_guests(host: str, node: str, manager: Account) -> list[dict]:
+    """Guests running on ``node``, with whether they start again by themselves after a reboot."""
+    secret = _active_secret(manager)
+    guests = []
+    for kind in ("qemu", "lxc"):
+        for guest in request(host, manager.token_id, secret, "GET", f"/nodes/{node}/{kind}") or []:
+            if guest.get("status") != "running":
+                continue
+            config = request(host, manager.token_id, secret, "GET", f"/nodes/{node}/{kind}/{guest['vmid']}/config") or {}
+            guests.append({
+                "vmid": guest["vmid"],
+                "name": guest.get("name") or "",
+                "kind": kind,
+                "onboot": bool(int(config.get("onboot") or 0)),
+            })
+    return sorted(guests, key=lambda guest: int(guest["vmid"]))
+
+
+def reboot_node(host: str, node: str, manager: Account) -> None:
+    """Reboot like the web interface does: guests are shut down first, those marked "start at boot" come back."""
+    request(host, manager.token_id, _active_secret(manager), "POST", f"/nodes/{node}/status", {"command": "reboot"})
+
+
+def wait_until_back(host: str, manager: Account, timeout: float = 900) -> bool:
+    """After a reboot: wait until the server answered as gone once and then answers again."""
+    import time
+
+    secret, deadline, gone = _active_secret(manager), time.monotonic() + timeout, False
+    while time.monotonic() < deadline:
+        time.sleep(5)
+        try:
+            request(host, manager.token_id, secret, "GET", "/version")
+        except AuthError:
+            gone = True
+            continue
+        if gone:
+            return True
+    return False
 
 
 def upgrade_console_url(host: str, node: str) -> str:

@@ -296,7 +296,7 @@ msgid "Show"
 msgstr ""
 
 #: authswitch/gui.py:118 authswitch/gui.py:812 authswitch/gui.py:1002
-#: authswitch/gui.py:1119
+#: authswitch/gui.py:1127
 msgid "Close"
 msgstr ""
 
@@ -388,7 +388,7 @@ msgstr ""
 msgid "Server not reachable"
 msgstr ""
 
-#: authswitch/gui.py:281 authswitch/gui.py:1086
+#: authswitch/gui.py:281 authswitch/gui.py:1090
 #, python-brace-format
 msgid "Proxmox VE {version}"
 msgstr ""
@@ -424,7 +424,7 @@ msgstr ""
 
 #: authswitch/gui.py:320 authswitch/gui.py:498 authswitch/gui.py:587
 #: authswitch/gui.py:650 authswitch/gui.py:849 authswitch/gui.py:943
-#: authswitch/gui.py:1171
+#: authswitch/gui.py:1229
 msgid "Cancel"
 msgstr ""
 
@@ -909,77 +909,143 @@ msgid "Language of the web interface: {language}"
 msgstr ""
 
 #: authswitch/gui.py:1076
+msgid "Reboot"
+msgstr ""
+
+#: authswitch/gui.py:1080
 msgid "Upgrade"
 msgstr ""
 
-#: authswitch/gui.py:1085
+#: authswitch/gui.py:1089
 msgid "up to date"
 msgstr ""
 
-#: authswitch/gui.py:1085
+#: authswitch/gui.py:1089
 #, python-brace-format
 msgid "{count} updates available"
 msgstr ""
 
-#: authswitch/gui.py:1091
+#: authswitch/gui.py:1092
+msgid "reboot pending"
+msgstr ""
+
+#: authswitch/gui.py:1099
 msgid "Check for updates"
 msgstr ""
 
-#: authswitch/gui.py:1091
+#: authswitch/gui.py:1099
 msgid "Runs apt update on every node"
 msgstr ""
 
-#: authswitch/gui.py:1100
+#: authswitch/gui.py:1108
 msgid "Updates could not be checked"
 msgstr ""
 
-#: authswitch/gui.py:1115
+#: authswitch/gui.py:1123
 msgid ""
 "Upgrade installs all pending updates of a node, the same as the Upgrade "
 "button of the web interface. It stays within the installed major version; "
 "moving to the next one needs the official upgrade guide."
 msgstr ""
 
-#: authswitch/gui.py:1118
+#: authswitch/gui.py:1126
 msgid "Updates and language"
 msgstr ""
 
-#: authswitch/gui.py:1121
+#: authswitch/gui.py:1129
 msgid "Major upgrade guide"
 msgstr ""
 
-#: authswitch/gui.py:1136
+#: authswitch/gui.py:1144
 msgid "Checking SSH access…"
 msgstr ""
 
-#: authswitch/gui.py:1143
+#: authswitch/gui.py:1151
 msgid "Upgrade failed"
 msgstr ""
 
-#: authswitch/gui.py:1143
+#: authswitch/gui.py:1151
 msgid "Use the upgrade console instead."
 msgstr ""
 
-#: authswitch/gui.py:1145
+#: authswitch/gui.py:1153
 #, python-brace-format
 msgid "{node} is up to date"
 msgstr ""
 
-#: authswitch/gui.py:1148
-msgid "Reboot recommended"
-msgstr ""
-
-#: authswitch/gui.py:1148
-#, python-brace-format
-msgid "{node} has a new kernel; it takes effect after a reboot."
-msgstr ""
-
-#: authswitch/gui.py:1158
+#: authswitch/gui.py:1164
 #, python-brace-format
 msgid "Upgrading {node}… this can take a few minutes"
 msgstr ""
 
-#: authswitch/gui.py:1166
+#: authswitch/gui.py:1172
+msgid "Reading running guests…"
+msgstr ""
+
+#: authswitch/gui.py:1177
+#, python-brace-format
+msgid "{node} has a new kernel; it takes effect after a reboot."
+msgstr ""
+
+#: authswitch/gui.py:1181
+msgid "Running guests are shut down first."
+msgstr ""
+
+#: authswitch/gui.py:1183
+#, python-brace-format
+msgid "Start again by themselves: {guests}"
+msgstr ""
+
+#: authswitch/gui.py:1185
+#, python-brace-format
+msgid "Stay off until you start them: {guests}"
+msgstr ""
+
+#: authswitch/gui.py:1187
+msgid "No guest is running."
+msgstr ""
+
+#: authswitch/gui.py:1188
+msgid "The web interface is unreachable for a few minutes."
+msgstr ""
+
+#: authswitch/gui.py:1189
+#, python-brace-format
+msgid "Reboot {node} now?"
+msgstr ""
+
+#: authswitch/gui.py:1190
+msgid "Later"
+msgstr ""
+
+#: authswitch/gui.py:1191
+msgid "Reboot now"
+msgstr ""
+
+#: authswitch/gui.py:1197
+#, python-brace-format
+msgid "{node} is back after the reboot"
+msgstr ""
+
+#: authswitch/gui.py:1199
+#, python-brace-format
+msgid "{node} is not back yet"
+msgstr ""
+
+#: authswitch/gui.py:1200
+msgid "It did not answer within 15 minutes. Check the console of the machine."
+msgstr ""
+
+#: authswitch/gui.py:1206
+msgid "Reboot failed"
+msgstr ""
+
+#: authswitch/gui.py:1208
+#, python-brace-format
+msgid "{node} is rebooting…"
+msgstr ""
+
+#: authswitch/gui.py:1224
 #, python-brace-format
 msgid ""
 "SSH as root does not work for {node}, so the upgrade runs in the upgrade "
@@ -987,50 +1053,50 @@ msgid ""
 "upgrades with a single click, set up \"SSH for my terminal\" once."
 msgstr ""
 
-#: authswitch/gui.py:1170
+#: authswitch/gui.py:1228
 #, python-brace-format
 msgid "Upgrade {node}?"
 msgstr ""
 
-#: authswitch/gui.py:1173
+#: authswitch/gui.py:1231
 msgid "Set up SSH…"
 msgstr ""
 
-#: authswitch/gui.py:1174
+#: authswitch/gui.py:1232
 msgid "Open upgrade console"
 msgstr ""
 
-#: authswitch/gui.py:1189
+#: authswitch/gui.py:1247
 msgid "Options"
 msgstr ""
 
-#: authswitch/gui.py:1192
+#: authswitch/gui.py:1250
 msgid "MCP server"
 msgstr ""
 
-#: authswitch/gui.py:1193
+#: authswitch/gui.py:1251
 msgid ""
 "Lets AI assistants with MCP support use your Proxmox VE accounts; copy the "
 "entry for their configuration"
 msgstr ""
 
-#: authswitch/gui.py:1195
+#: authswitch/gui.py:1253
 msgid "Copy entry"
 msgstr ""
 
-#: authswitch/gui.py:1200
+#: authswitch/gui.py:1258
 msgid "Sound effects"
 msgstr ""
 
-#: authswitch/gui.py:1205
+#: authswitch/gui.py:1263
 msgid "Check for updates on start"
 msgstr ""
 
-#: authswitch/gui.py:1206
+#: authswitch/gui.py:1264
 msgid "Asks GitHub for the latest release, without any account"
 msgstr ""
 
-#: authswitch/gui.py:1217
+#: authswitch/gui.py:1275
 #, python-brace-format
 msgid "Auth-Switch {version} is available"
 msgstr ""

@@ -201,6 +201,7 @@ class AccountTest(unittest.TestCase):
             ("POST", "/nodes/pve/apt/update"): upid,
             ("GET", "/nodes/pve/status"): {"pveversion": "pve-manager/8.2.4/faa83925c9641325"},
             ("GET", "/nodes/pve/apt/update"): [{"Package": "pve-manager"}, {"Package": "libc6"}],
+            ("GET", "/nodes/pve/apt/versions"): [],
         }
 
         def fake(host, token, secret, method, path, params=None, fingerprint=None):
@@ -210,9 +211,50 @@ class AccountTest(unittest.TestCase):
 
         with mock.patch.object(core, "request", side_effect=fake):
             nodes = core.node_updates(manager.host, manager, refresh=True)
-        self.assertEqual(nodes, [{"node": "pve", "version": "8.2.4", "updates": 2, "packages": ["libc6", "pve-manager"], "local": True}])
+        self.assertEqual(nodes, [{"node": "pve", "version": "8.2.4", "updates": 2, "packages": ["libc6", "pve-manager"], "local": True, "reboot": False}])
         self.assertEqual(core.major_upgrade_guide("8.2.4"), "https://pve.proxmox.com/wiki/Upgrade_from_8_to_9")
         self.assertIn("console=upgrade", core.upgrade_console_url(manager.host, "pve"))
+
+    def test_reboot(self):
+        manager = core.find_account(TOKEN)
+        answers = {
+            "/nodes/pve/qemu": [{"vmid": 101, "name": "web", "status": "running"}, {"vmid": 102, "status": "stopped"}],
+            "/nodes/pve/lxc": [{"vmid": 200, "name": "dns", "status": "running"}],
+            "/nodes/pve/qemu/101/config": {"onboot": 1},
+            "/nodes/pve/lxc/200/config": {},
+        }
+        with mock.patch.object(core, "request", side_effect=lambda h, t, s, m, path, *a, **k: answers[path]):
+            self.assertEqual(core.running_guests(manager.host, "pve", manager), [
+                {"vmid": 101, "name": "web", "kind": "qemu", "onboot": True},
+                {"vmid": 200, "name": "dns", "kind": "lxc", "onboot": False},
+            ])
+        with mock.patch.object(core, "request") as request:
+            core.reboot_node(manager.host, "pve", manager)
+        self.assertEqual(request.call_args.args[3:6], ("POST", "/nodes/pve/status", {"command": "reboot"}))
+        states = [None, core.AuthError("down"), core.AuthError("down"), {"version": "9"}]
+
+        def answer(*_args, **_kwargs):
+            state = states.pop(0)
+            if isinstance(state, Exception):
+                raise state
+            return state
+
+        with mock.patch.object(core, "request", side_effect=answer), mock.patch("time.sleep"):
+            self.assertTrue(core.wait_until_back(manager.host, manager))
+
+    def test_pending_reboot_from_installed_kernels(self):
+        status = {"current-kernel": {"release": "7.0.14-24-pve"}}
+        versions = [
+            {"Package": "proxmox-kernel-7.0.14-26-pve-signed", "CurrentState": "Installed"},
+            {"Package": "proxmox-kernel-7.0.14-24-pve-signed", "CurrentState": "Installed"},
+            {"Package": "proxmox-kernel-7.0", "CurrentState": "Installed"},
+            {"Package": "proxmox-kernel-helper", "CurrentState": "Installed"},
+        ]
+        self.assertTrue(core.newer_kernel_installed(status, versions))
+        self.assertFalse(core.newer_kernel_installed({"current-kernel": {"release": "7.0.14-26-pve"}}, versions))
+        self.assertFalse(core.newer_kernel_installed({}, versions))
+        old = [{"Package": "pve-kernel-6.8.12-4-pve", "CurrentState": "Installed"}]
+        self.assertTrue(core.newer_kernel_installed({"current-kernel": {"release": "6.8.12-1-pve"}}, old))
 
     def test_upgrade_over_ssh_reports_a_needed_reboot(self):
         output = "Reading package lists...\npve-manager/8.4.1/2a5fa54a8503f96d (running kernel: 6.8.12-9-pve)\nAUTH-SWITCH-REBOOT\n"

@@ -1073,19 +1073,27 @@ class Window(Adw.ApplicationWindow):
         node_rows = []
         for node in nodes:
             row = Adw.ActionRow(title=node["node"], use_markup=False)
+            reboot = Gtk.Button(label=_("Reboot"), valign=Gtk.Align.CENTER, visible=False)
+            reboot.add_css_class("destructive-action")
+            reboot.connect("clicked", lambda _b, n=node: self.offer_reboot(host, manager, n["node"]))
+            row.add_suffix(reboot)
             button = Gtk.Button(label=_("Upgrade"), valign=Gtk.Align.CENTER)
             button.connect("clicked", lambda b, n=node: self.prepare_upgrade(host, manager, n, b, reread))
             row.add_suffix(button)
             rows.append(row)
-            node_rows.append((row, button))
+            node_rows.append((row, button, reboot))
 
         def show_nodes(current):
-            for (row, button), node in zip(node_rows, current):
+            for (row, button, reboot), node in zip(node_rows, current):
                 count = node["updates"]
                 state = _("up to date") if not count else _("{count} updates available").format(count=count)
-                row.set_subtitle(_("Proxmox VE {version}").format(version=node["version"]) + " · " + state)
+                parts = [_("Proxmox VE {version}").format(version=node["version"]), state]
+                if node.get("reboot"):
+                    parts.append(_("reboot pending"))
+                row.set_subtitle(" · ".join(parts))
                 row.set_tooltip_text(", ".join(node["packages"][:30]))
                 button.set_sensitive(bool(count))
+                reboot.set_visible(bool(node.get("reboot")))
 
         show_nodes(nodes)
         refresh = Adw.ActionRow(title=_("Check for updates"), subtitle=_("Runs apt update on every node"))
@@ -1144,9 +1152,7 @@ class Window(Adw.ApplicationWindow):
                 return
             self.toast(_("{node} is up to date").format(node=node["node"]), "success")
             if result["reboot"]:
-                self.explain(
-                    _("Reboot recommended"), _("{node} has a new kernel; it takes effect after a reboot.").format(node=node["node"])
-                )
+                self.offer_reboot(host, manager, node["node"])
 
         def checked(ready, _error):
             nonlocal done_upgrading
@@ -1160,6 +1166,58 @@ class Window(Adw.ApplicationWindow):
 
         done_upgrading = lambda: None  # noqa: E731 - replaced once the upgrade starts
         run_async(lambda: core.ssh_ready(host), checked)
+
+    def offer_reboot(self, host: str, manager: core.Account, node: str) -> None:
+        """A new kernel only helps after a reboot, so ask right away and say what it means for running guests."""
+        done_loading = self.busy(_("Reading running guests…"))
+
+        def loaded(guests, error):
+            done_loading()
+            guests = guests or []
+            lines = [_("{node} has a new kernel; it takes effect after a reboot.").format(node=node)]
+            if guests:
+                back = [g for g in guests if g["onboot"]]
+                stay = [g for g in guests if not g["onboot"]]
+                lines.append(_("Running guests are shut down first."))
+                if back:
+                    lines.append(_("Start again by themselves: {guests}").format(guests=", ".join(f"{g['vmid']} {g['name']}".strip() for g in back)))
+                if stay:
+                    lines.append(_("Stay off until you start them: {guests}").format(guests=", ".join(f"{g['vmid']} {g['name']}".strip() for g in stay)))
+            elif error is None:
+                lines.append(_("No guest is running."))
+            lines.append(_("The web interface is unreachable for a few minutes."))
+            dialog = Adw.MessageDialog(transient_for=self, heading=_("Reboot {node} now?").format(node=node), body="\n\n".join(lines))
+            dialog.add_response("later", _("Later"))
+            dialog.add_response("reboot", _("Reboot now"))
+            dialog.set_response_appearance("reboot", Adw.ResponseAppearance.DESTRUCTIVE)
+
+            def back_again(result, back_error):
+                done_waiting()
+                if result:
+                    self.toast(_("{node} is back after the reboot").format(node=node), "success")
+                else:
+                    self.explain(_("{node} is not back yet").format(node=node), str(back_error or "") or _(
+                        "It did not answer within 15 minutes. Check the console of the machine."
+                    ))
+
+            def rebooting(_result, reboot_error):
+                nonlocal done_waiting
+                if reboot_error:
+                    self.explain(_("Reboot failed"), str(reboot_error))
+                    return
+                done_waiting = self.busy(_("{node} is rebooting…").format(node=node))
+                run_async(lambda: core.wait_until_back(host, manager), back_again)
+
+            done_waiting = lambda: None  # noqa: E731 - replaced once the reboot starts
+
+            def on_response(_dialog, response):
+                if response == "reboot":
+                    run_async(lambda: core.reboot_node(host, node, manager), rebooting)
+
+            dialog.connect("response", on_response)
+            dialog.present()
+
+        run_async(lambda: core.running_guests(host, node, manager), loaded)
 
     def offer_upgrade_console(self, host: str, manager: core.Account, node: dict) -> None:
         body = _(

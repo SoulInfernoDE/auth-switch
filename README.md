@@ -52,14 +52,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.3.11_all.deb
+sudo apt install ./auth-switch_0.3.12_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.11-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.12-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -157,9 +157,14 @@ interface for the whole cluster – or leaves it to the browser.
 **Upgrade** installs all pending updates of a node with `apt dist-upgrade`, the
 same as the Upgrade button of the web interface. One click is enough: if SSH as
 root works – with the key of **SSH for my terminal** or your own – the upgrade
-runs straight away with a progress note, and Auth-Switch tells you afterwards if
-a new kernel needs a reboot. Otherwise it offers the web interface's upgrade
-console, where you see every step after signing in, and the SSH setup. It stays within the installed major version; for the
+runs straight away with a progress note. Otherwise it offers the web interface's
+upgrade console, where you see every step after signing in, and the SSH setup.
+
+When a newer kernel is installed than the one running, the node shows *reboot
+pending* and a **Reboot** button, and after an upgrade Auth-Switch asks right
+away. The question lists the running guests: they are shut down first, and
+those marked *start at boot* come back by themselves. Auth-Switch then waits
+and tells you when the node answers again. It stays within the installed major version; for the
 next one the dialog links the official upgrade guide, because a major upgrade
 needs preparation that should not run unattended.
 

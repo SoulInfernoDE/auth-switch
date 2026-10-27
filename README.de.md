@@ -53,14 +53,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.11_all.deb
+sudo apt install ./auth-switch_0.3.12_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.11-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.12-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -163,10 +163,16 @@ Weboberfläche für den ganzen Cluster ein – oder überlässt sie dem Browser.
 **Upgraden** installiert alle ausstehenden Updates eines Knotens mit
 `apt dist-upgrade`, wie der Upgrade-Knopf der Weboberfläche. Ein Klick genügt:
 Funktioniert SSH als root – mit dem Schlüssel von **SSH für mein Terminal** oder
-einem eigenen –, läuft das Upgrade sofort mit Fortschrittshinweis durch, und
-Auth-Switch meldet danach, ob ein neuer Kernel einen Neustart braucht. Sonst
+einem eigenen –, läuft das Upgrade sofort mit Fortschrittshinweis durch. Sonst
 bietet es die Upgrade-Konsole der Weboberfläche an, die nach der Anmeldung jeden
-Schritt zeigt, sowie die SSH-Einrichtung. Es bleibt
+Schritt zeigt, sowie die SSH-Einrichtung.
+
+Ist ein neuerer Kernel installiert als der laufende, zeigt der Knoten
+*Neustart ausstehend* und einen Knopf **Neu starten**, und nach einem Upgrade
+fragt Auth-Switch sofort nach. Die Frage nennt die laufenden Gäste: Sie werden
+vorher heruntergefahren, und die mit *Beim Booten starten* kommen von selbst
+zurück. Danach wartet Auth-Switch und meldet, sobald der Knoten wieder
+antwortet. Es bleibt
 innerhalb der installierten Hauptversion; für die nächste verlinkt der Dialog
 die offizielle Upgrade-Anleitung, weil ein Hauptversions-Upgrade Vorbereitung
 braucht, die nicht unbeaufsichtigt laufen sollte.
