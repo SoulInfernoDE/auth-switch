@@ -272,6 +272,15 @@ class InputTest(unittest.TestCase):
             connection.return_value.getresponse.return_value = mock.Mock(status=200, read=lambda: b'{"data": {"privsep": 1}}')
             self.assertEqual(core.request("h:1", TOKEN, SECRET, "GET", "/access/users/root@pam/token/x"), {"privsep": 1})
 
+    def test_token_without_rights_is_recognised(self):
+        answers = {"/version": {"version": "8.2.4"}, "/access/permissions": {}}
+        with mock.patch.object(core, "request", side_effect=lambda h, t, s, m, path, *a, **k: answers[path]):
+            profile = core.validate("pve.example.com:8006", TOKEN, SECRET)
+        self.assertEqual((profile.valid, profile.has_rights), (True, False))
+        answers["/access/permissions"] = {"/": {"Sys.Audit": 1}}
+        with mock.patch.object(core, "request", side_effect=lambda h, t, s, m, path, *a, **k: answers[path]):
+            self.assertTrue(core.validate("pve.example.com:8006", TOKEN, SECRET).has_rights)
+
     def test_form_encoding(self):
         self.assertEqual(core._encode({"onboot": True, "memory": 2048, "skip": None}), "onboot=1&memory=2048")
 

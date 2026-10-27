@@ -19,6 +19,15 @@ from .i18n import _  # noqa: E402
 APP_ID = ICON_NAME = "dev.authswitch.AuthSwitch"
 
 
+def PRIVILEGE_HINT() -> str:  # noqa: N802 - looked up when shown, after the language is set
+    return _(
+        "The token lacks the right for this. A token with privilege separation only has the rights granted to the "
+        "token itself. For a management token of root@pam, open Datacenter → Permissions → API Tokens in the web "
+        "interface, edit the token and untick \"Privilege Separation\"; otherwise grant it a role with "
+        "\"Permissions…\" from another account."
+    )
+
+
 def run_async(func, callback) -> None:
     """Run ``func`` in a thread and deliver ``(result, error)`` on the main loop."""
 
@@ -100,6 +109,8 @@ class Window(Adw.ApplicationWindow):
 
     def explain(self, heading: str, text: str) -> None:
         """Error that needs more room than a toast."""
+        if "HTTP 403" in text:
+            text += "\n\n" + PRIVILEGE_HINT()
         dialog = Adw.MessageDialog(transient_for=self, heading=heading, body=text)
         dialog.add_response("close", _("Close"))
         dialog.present()
@@ -254,6 +265,8 @@ class Window(Adw.ApplicationWindow):
             row.set_subtitle(_("Server not reachable"))
             return
         parts = [_("Proxmox VE {version}").format(version=profile.version)] if profile.version else []
+        if profile.has_rights is False:
+            parts.append(_("No rights – check privilege separation"))
         if account.active:
             parts.append(_("Active"))
         row.set_subtitle(" · ".join(parts))
@@ -552,7 +565,7 @@ class Window(Adw.ApplicationWindow):
                 return
             self.toast(_("Added {token}").format(token=account.token_id), "success")
             self.reload(recheck=True)
-            self.check_subscription(account.host, account.token_id, quiet=True)
+            run_async(lambda: core.fetch_profile(account), lambda profile, _e: self.after_add(account, profile))
 
         def add(fingerprint: str = ""):
             run_async(lambda: core.add_account(host, token_id, secret, fingerprint), added)
@@ -598,6 +611,16 @@ class Window(Adw.ApplicationWindow):
         dialog.present()
 
     # --- subscription and repository ------------------------------------
+
+    def after_add(self, account: core.Account, profile) -> None:
+        """A token without any right cannot be checked further, so say why before anything else fails."""
+        if profile is not None and profile.has_rights is False:
+            self.explain(
+                _("{token} has no rights yet").format(token=account.token_id),
+                _("It can sign in, but may not read or change anything.") + "\n\n" + PRIVILEGE_HINT(),
+            )
+            return
+        self.check_subscription(account.host, account.token_id, quiet=True)
 
     def check_subscription(self, host: str, token_id: str, quiet: bool = False) -> None:
         """Read subscription and repositories; offer to switch to the no-subscription repository if needed."""

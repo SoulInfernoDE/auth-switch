@@ -52,22 +52,26 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.3_all.deb
+sudo apt install ./auth-switch_0.3.4_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.3-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.4-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
 
 1. In der Proxmox-VE-Weboberfläche **Rechenzentrum → Berechtigungen →
-   API-Token** öffnen und ein Token anlegen. Gib ihm nur die nötigen
-   Berechtigungen; bei aktivierter *Privilegientrennung* müssen sie dem Token
-   selbst erteilt werden.
+   API-Token** öffnen und ein Token anlegen. *Separierung der Privilegien* ist
+   standardmäßig angehakt: Ein solches Token hat keine Rechte, bis du sie dem
+   Token selbst erteilst. Für ein Verwaltungs-Token von `root@pam` – nötig für
+   Berechtigungen, Repositories, Updates und Sprache – das Häkchen entfernen;
+   für ein eingeschränktes Token es behalten und Rollen mit **Berechtigungen …**
+   erteilen. Auth-Switch weist darauf hin, wenn ein neues Token gar keine Rechte
+   hat.
 2. In Auth-Switch **+** drücken. Auth-Switch durchsucht deine lokalen Netze
    nach Proxmox-VE-Servern und trägt die Adresse des ersten gefundenen ein;
    wähle einen anderen aus der Liste oder gib eine Adresse ein. Dann Token-ID

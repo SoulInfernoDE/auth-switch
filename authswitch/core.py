@@ -59,6 +59,8 @@ class Profile:
     valid: bool | None
     version: str = ""
     detail: str = ""
+    # False if the token may do nothing at all, typically privilege separation without any granted role.
+    has_rights: bool | None = None
 
 
 # --- files ------------------------------------------------------------------
@@ -327,7 +329,12 @@ def validate(host: str, token_id: str, secret: str, fingerprint: str | None = No
         message = str(error)
         return Profile(valid=False if message.startswith("HTTP 401") else None, detail=message)
     version = data.get("version", "") if isinstance(data, dict) else ""
-    return Profile(valid=True, version=str(version))
+    try:
+        # Every token may read its own effective permissions; an empty answer means it can do nothing.
+        rights = bool(request(host, token_id, secret, "GET", "/access/permissions", fingerprint=fingerprint))
+    except AuthError:
+        rights = None
+    return Profile(valid=True, version=str(version), has_rights=rights)
 
 
 def fetch_profile(account: Account) -> Profile:
