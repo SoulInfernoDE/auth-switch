@@ -53,14 +53,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.13_all.deb
+sudo apt install ./auth-switch_0.3.14_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.13-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.14-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -238,8 +238,10 @@ System vertraut.
 ## MCP-Server
 
 Im Fenster **Eintrag kopieren** drücken und in die Konfiguration deines
-MCP-Clients einfügen oder `auth-switch-mcp` als stdio-Server registrieren.
-Tools:
+MCP-Clients einfügen oder `auth-switch-mcp` als stdio-Server registrieren. Ist
+Claude Code oder Claude Desktop installiert, zeigt das Fenster zusätzlich einen
+Schalter **Claude-Code-Integration**, der den Server in beiden registriert und
+wieder entfernt. Tools:
 
 | Tool | Zweck |
 | --- | --- |

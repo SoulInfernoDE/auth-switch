@@ -57,6 +57,8 @@ class Context:
     restricted_files: set[str] = field(default_factory=set)
     restricted_repository: str = ""
     restricted_label: str = ""
+    # Phrases in which a term is fine, e.g. the name of a product the code integrates with.
+    restricted_phrases: list[str] = field(default_factory=list)
 
     @property
     def restricting(self) -> bool:
@@ -87,6 +89,7 @@ def _restricted_settings(context: "Context", settings: dict) -> None:
     if terms:
         context.restricted_terms = re.compile(r"\b(?:" + "|".join(map(re.escape, terms)) + r")\b", re.IGNORECASE)
     context.restricted_files = {str(name) for name in rules.get("files") or [] if str(name).strip()}
+    context.restricted_phrases = [str(phrase).lower() for phrase in rules.get("allow") or [] if str(phrase).strip()]
     if rules.get("repository"):
         context.restricted_repository = repository_id(str(rules["repository"]))
         context.restricted_label = str(rules["repository"])
@@ -161,7 +164,7 @@ def scan_line(line: str, where: str, context: Context) -> list[Finding]:
         term = context.restricted_terms.search(line)
         if term and _ATTRIBUTION.search(line):
             add("restricted-attribution", PRIVATE, term.group(0), _restricted_detail(context, _("An attribution line naming {term}."), term.group(0)))
-        elif term:
+        elif term and not any(phrase in line.lower() for phrase in context.restricted_phrases):
             add("restricted-term", PRIVATE, term.group(0), _restricted_detail(context, _("A mention of {term}."), term.group(0)))
     return found
 

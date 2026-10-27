@@ -1171,95 +1171,124 @@ msgstr ""
 msgid "Copy entry"
 msgstr "Eintrag kopieren"
 
-#: authswitch/gui.py:1258
+#: authswitch/gui.py:1260
+msgid "Claude Code"
+msgstr "Claude Code"
+
+#: authswitch/gui.py:1260
+msgid "Claude Desktop"
+msgstr "Claude Desktop"
+
+#: authswitch/gui.py:1262
+msgid "Claude Code integration"
+msgstr "Claude-Code-Integration"
+
+#: authswitch/gui.py:1263
+#, python-brace-format
+msgid "Registers the MCP server in {apps}"
+msgstr "Registriert den MCP-Server in {apps}"
+
+#: authswitch/gui.py:1269
 msgid "Sound effects"
 msgstr "Soundeffekte"
 
-#: authswitch/gui.py:1263
+#: authswitch/gui.py:1274
 msgid "Check for updates on start"
 msgstr "Beim Start nach Updates suchen"
 
-#: authswitch/gui.py:1264
+#: authswitch/gui.py:1275
 msgid "Asks GitHub for the latest release, without any account"
 msgstr "Fragt GitHub nach dem neuesten Release, ohne ein Konto zu verwenden"
 
-#: authswitch/gui.py:1275
+#: authswitch/gui.py:1294
+msgid "Claude Code integration could not be changed"
+msgstr "Claude-Code-Integration konnte nicht geändert werden"
+
+#: authswitch/gui.py:1296
+msgid "MCP server registered; restart Claude Code to load it"
+msgstr "MCP-Server registriert; starte Claude Code neu, um ihn zu laden"
+
+#: authswitch/gui.py:1298
+msgid "MCP server removed from Claude Code"
+msgstr "MCP-Server aus Claude Code entfernt"
+
+#: authswitch/gui.py:1306
 #, python-brace-format
 msgid "Auth-Switch {version} is available"
 msgstr "Auth-Switch {version} ist verfügbar"
 
-#: authswitch/leaks.py:130
+#: authswitch/leaks.py:133
 #, python-brace-format
 msgid "The token currently stored for {account}."
 msgstr "Das aktuell für {account} gespeicherte Token."
 
-#: authswitch/leaks.py:134
+#: authswitch/leaks.py:137
 msgid "Looks like an access token."
 msgstr "Sieht aus wie ein Zugriffstoken."
 
-#: authswitch/leaks.py:136
+#: authswitch/leaks.py:139
 msgid "A private key."
 msgstr "Ein privater Schlüssel."
 
-#: authswitch/leaks.py:140
+#: authswitch/leaks.py:143
 #, python-brace-format
 msgid "Address of your Proxmox VE server {host}."
 msgstr "Adresse deines Proxmox-VE-Servers {host}."
 
-#: authswitch/leaks.py:144
+#: authswitch/leaks.py:147
 msgid "Your real git e-mail address."
 msgstr "Deine echte Git-E-Mail-Adresse."
 
-#: authswitch/leaks.py:146
+#: authswitch/leaks.py:149
 msgid "An e-mail address; check that it is meant to be public."
 msgstr "Eine E-Mail-Adresse; bitte prüfen, ob sie öffentlich sein soll."
 
-#: authswitch/leaks.py:148
+#: authswitch/leaks.py:151
 msgid "A path inside your home directory; it reveals your user name."
 msgstr "Ein Pfad in deinem Home-Verzeichnis; er verrät deinen Benutzernamen."
 
-#: authswitch/leaks.py:150
+#: authswitch/leaks.py:153
 msgid "The name of this computer."
 msgstr "Der Name dieses Rechners."
 
-#: authswitch/leaks.py:157
+#: authswitch/leaks.py:160
 msgid "An address from a private network."
 msgstr "Eine Adresse aus einem privaten Netz."
 
-#: authswitch/leaks.py:159
+#: authswitch/leaks.py:162
 msgid "A host name from an internal network."
 msgstr "Ein Hostname aus einem internen Netz."
 
-#: authswitch/leaks.py:163
+#: authswitch/leaks.py:166
 #, python-brace-format
 msgid "An attribution line naming {term}."
 msgstr "Eine Mitautor-Zeile, die {term} nennt."
 
-#: authswitch/leaks.py:165
+#: authswitch/leaks.py:168
 #, python-brace-format
 msgid "A mention of {term}."
 msgstr "Eine Erwähnung von {term}."
 
-#: authswitch/leaks.py:173
+#: authswitch/leaks.py:176
 #, python-brace-format
 msgid "This belongs only in {repository}."
 msgstr "Das gehört nur nach {repository}."
 
-#: authswitch/leaks.py:174
+#: authswitch/leaks.py:177
 msgid "This is not meant to be published."
 msgstr "Das soll nicht veröffentlicht werden."
 
-#: authswitch/leaks.py:181
+#: authswitch/leaks.py:184
 #, python-brace-format
 msgid "A file on your restricted list ({term})."
 msgstr "Eine Datei von deiner Sperrliste ({term})."
 
-#: authswitch/leaks.py:199
+#: authswitch/leaks.py:202
 #, python-brace-format
 msgid "{path} does not exist."
 msgstr "{path} existiert nicht."
 
-#: authswitch/leaks.py:247
+#: authswitch/leaks.py:250
 #, python-brace-format
 msgid "{path} is not a git repository."
 msgstr "{path} ist kein Git-Repository."

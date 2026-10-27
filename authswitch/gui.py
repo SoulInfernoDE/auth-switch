@@ -1255,6 +1255,17 @@ class Window(Adw.ApplicationWindow):
         mcp_row.add_suffix(button)
         self.options.add(mcp_row)
 
+        targets = core.claude_targets()
+        if targets:
+            names = {"code": _("Claude Code"), "desktop": _("Claude Desktop")}
+            claude_row = Adw.SwitchRow(
+                title=_("Claude Code integration"),
+                subtitle=_("Registers the MCP server in {apps}").format(apps=" + ".join(names[t] for t in targets)),
+                active=core.claude_registered(),
+            )
+            claude_row.connect("notify::active", self.on_claude_toggled)
+            self.options.add(claude_row)
+
         sound_row = Adw.SwitchRow(title=_("Sound effects"), active=bool(self.settings["sounds"]))
         sound_row.connect("notify::active", self.on_sounds_toggled)
         self.options.add(sound_row)
@@ -1267,6 +1278,26 @@ class Window(Adw.ApplicationWindow):
         update_row.connect("notify::active", self.on_updates_toggled)
         self.options.add(update_row)
         self.page.add(self.options)
+
+    def on_claude_toggled(self, row, _pspec) -> None:
+        if getattr(row, "busy", False):
+            return
+        register = row.get_active()
+        row.set_sensitive(False)
+
+        def done(_result, error):
+            row.set_sensitive(True)
+            if error:
+                row.busy = True
+                row.set_active(not register)
+                row.busy = False
+                self.explain(_("Claude Code integration could not be changed"), str(error))
+            elif register:
+                self.toast(_("MCP server registered; restart Claude Code to load it"), "success")
+            else:
+                self.toast(_("MCP server removed from Claude Code"))
+
+        run_async(core.claude_register if register else core.claude_unregister, done)
 
     def look_for_update(self) -> None:
         def done(latest, _error):

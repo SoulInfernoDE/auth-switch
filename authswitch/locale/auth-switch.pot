@@ -1084,95 +1084,124 @@ msgstr ""
 msgid "Copy entry"
 msgstr ""
 
-#: authswitch/gui.py:1258
-msgid "Sound effects"
+#: authswitch/gui.py:1260
+msgid "Claude Code"
+msgstr ""
+
+#: authswitch/gui.py:1260
+msgid "Claude Desktop"
+msgstr ""
+
+#: authswitch/gui.py:1262
+msgid "Claude Code integration"
 msgstr ""
 
 #: authswitch/gui.py:1263
+#, python-brace-format
+msgid "Registers the MCP server in {apps}"
+msgstr ""
+
+#: authswitch/gui.py:1269
+msgid "Sound effects"
+msgstr ""
+
+#: authswitch/gui.py:1274
 msgid "Check for updates on start"
 msgstr ""
 
-#: authswitch/gui.py:1264
+#: authswitch/gui.py:1275
 msgid "Asks GitHub for the latest release, without any account"
 msgstr ""
 
-#: authswitch/gui.py:1275
+#: authswitch/gui.py:1294
+msgid "Claude Code integration could not be changed"
+msgstr ""
+
+#: authswitch/gui.py:1296
+msgid "MCP server registered; restart Claude Code to load it"
+msgstr ""
+
+#: authswitch/gui.py:1298
+msgid "MCP server removed from Claude Code"
+msgstr ""
+
+#: authswitch/gui.py:1306
 #, python-brace-format
 msgid "Auth-Switch {version} is available"
 msgstr ""
 
-#: authswitch/leaks.py:130
+#: authswitch/leaks.py:133
 #, python-brace-format
 msgid "The token currently stored for {account}."
 msgstr ""
 
-#: authswitch/leaks.py:134
+#: authswitch/leaks.py:137
 msgid "Looks like an access token."
 msgstr ""
 
-#: authswitch/leaks.py:136
+#: authswitch/leaks.py:139
 msgid "A private key."
 msgstr ""
 
-#: authswitch/leaks.py:140
+#: authswitch/leaks.py:143
 #, python-brace-format
 msgid "Address of your Proxmox VE server {host}."
 msgstr ""
 
-#: authswitch/leaks.py:144
+#: authswitch/leaks.py:147
 msgid "Your real git e-mail address."
 msgstr ""
 
-#: authswitch/leaks.py:146
+#: authswitch/leaks.py:149
 msgid "An e-mail address; check that it is meant to be public."
 msgstr ""
 
-#: authswitch/leaks.py:148
+#: authswitch/leaks.py:151
 msgid "A path inside your home directory; it reveals your user name."
 msgstr ""
 
-#: authswitch/leaks.py:150
+#: authswitch/leaks.py:153
 msgid "The name of this computer."
 msgstr ""
 
-#: authswitch/leaks.py:157
+#: authswitch/leaks.py:160
 msgid "An address from a private network."
 msgstr ""
 
-#: authswitch/leaks.py:159
+#: authswitch/leaks.py:162
 msgid "A host name from an internal network."
 msgstr ""
 
-#: authswitch/leaks.py:163
+#: authswitch/leaks.py:166
 #, python-brace-format
 msgid "An attribution line naming {term}."
 msgstr ""
 
-#: authswitch/leaks.py:165
+#: authswitch/leaks.py:168
 #, python-brace-format
 msgid "A mention of {term}."
 msgstr ""
 
-#: authswitch/leaks.py:173
+#: authswitch/leaks.py:176
 #, python-brace-format
 msgid "This belongs only in {repository}."
 msgstr ""
 
-#: authswitch/leaks.py:174
+#: authswitch/leaks.py:177
 msgid "This is not meant to be published."
 msgstr ""
 
-#: authswitch/leaks.py:181
+#: authswitch/leaks.py:184
 #, python-brace-format
 msgid "A file on your restricted list ({term})."
 msgstr ""
 
-#: authswitch/leaks.py:199
+#: authswitch/leaks.py:202
 #, python-brace-format
 msgid "{path} does not exist."
 msgstr ""
 
-#: authswitch/leaks.py:247
+#: authswitch/leaks.py:250
 #, python-brace-format
 msgid "{path} is not a git repository."
 msgstr ""

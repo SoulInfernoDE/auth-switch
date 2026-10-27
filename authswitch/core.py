@@ -1068,6 +1068,84 @@ def mcp_command() -> list[str]:
     return [script] if script else [sys.executable, "-m", "authswitch.mcp"]
 
 
+def claude_cli() -> str | None:
+    return shutil.which("claude")
+
+
+def claude_code_file() -> Path:
+    base = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~")
+    return Path(base) / ".claude.json"
+
+
+def claude_desktop_file() -> Path:
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return Path(base) / "Claude" / "claude_desktop_config.json"
+
+
+def claude_targets() -> list[str]:
+    """Which of Claude Code ("code", also behind the desktop app's Code tab) and Claude Desktop ("desktop") are installed."""
+    targets = []
+    if claude_cli() or claude_code_file().exists():
+        targets.append("code")
+    if claude_desktop_file().parent.is_dir():
+        targets.append("desktop")
+    return targets
+
+
+def _read_json(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _set_mcp_entry(path: Path, entry: dict | None) -> None:
+    """Add or remove our entry in a client's configuration, keeping everything else and the file's mode."""
+    config = _read_json(path) if path.exists() else {}
+    servers = config.setdefault("mcpServers", {})
+    if entry is None:
+        servers.pop(MCP_NAME, None)
+    else:
+        servers[MCP_NAME] = entry
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + f".{APP}-tmp")
+    temporary.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    temporary.chmod(path.stat().st_mode & 0o777 if path.exists() else 0o600)
+    os.replace(temporary, path)
+
+
+def claude_registered() -> bool:
+    files = {"code": claude_code_file(), "desktop": claude_desktop_file()}
+    return any(MCP_NAME in (_read_json(files[target]).get("mcpServers") or {}) for target in claude_targets())
+
+
+def claude_register() -> None:
+    command = mcp_command()
+    for target in claude_targets():
+        if target == "code" and claude_cli():
+            subprocess.run(["claude", "mcp", "remove", "--scope", "user", MCP_NAME], capture_output=True, timeout=60)
+            proc = subprocess.run(
+                ["claude", "mcp", "add", "--scope", "user", MCP_NAME, "--", *command], capture_output=True, text=True, timeout=60
+            )
+            if proc.returncode != 0:
+                raise AuthError((proc.stderr or proc.stdout).strip() or "claude mcp add failed")
+        elif target == "code":
+            _set_mcp_entry(claude_code_file(), {"type": "stdio", "command": command[0], "args": command[1:], "env": {}})
+        else:
+            _set_mcp_entry(claude_desktop_file(), {"command": command[0], "args": command[1:]})
+
+
+def claude_unregister() -> None:
+    for target in claude_targets():
+        if target == "code" and claude_cli():
+            subprocess.run(["claude", "mcp", "remove", "--scope", "user", MCP_NAME], capture_output=True, timeout=60)
+        elif target == "code":
+            _set_mcp_entry(claude_code_file(), None)
+        else:
+            _set_mcp_entry(claude_desktop_file(), None)
+
+
 def mcp_client_config() -> str:
     """The ``mcpServers`` entry most MCP clients accept in their configuration file."""
     command = mcp_command()

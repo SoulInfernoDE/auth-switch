@@ -570,6 +570,57 @@ class SshAccessTest(unittest.TestCase):
         self.assertFalse(sshaccess._own_dir().exists())
 
 
+class ClaudeIntegrationTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.root = Path(self.dir.name)
+        patches = [
+            mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": self.dir.name, "XDG_CONFIG_HOME": self.dir.name}),
+            mock.patch.object(core, "claude_cli", return_value=None),
+            mock.patch.object(core, "mcp_command", return_value=["/usr/bin/auth-switch-mcp"]),
+        ]
+        for patcher in patches:
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_nothing_installed(self):
+        self.assertEqual(core.claude_targets(), [])
+
+    def test_register_in_code_and_desktop(self):
+        (self.root / ".claude.json").write_text(json.dumps({"numStartups": 3, "mcpServers": {"other": {"command": "x"}}}))
+        (self.root / ".claude.json").chmod(0o600)
+        (self.root / "Claude").mkdir()
+        desktop = self.root / "Claude" / "claude_desktop_config.json"
+        desktop.write_text(json.dumps({"preferences": {"a": 1}, "mcpServers": {"blender": {"command": "b"}}}))
+        self.assertEqual(core.claude_targets(), ["code", "desktop"])
+        self.assertFalse(core.claude_registered())
+        core.claude_register()
+        code = json.loads((self.root / ".claude.json").read_text())
+        self.assertEqual(code["numStartups"], 3)
+        self.assertEqual(code["mcpServers"]["auth-switch"]["command"], "/usr/bin/auth-switch-mcp")
+        self.assertIn("other", code["mcpServers"])
+        self.assertEqual((self.root / ".claude.json").stat().st_mode & 0o777, 0o600)
+        settings = json.loads(desktop.read_text())
+        self.assertEqual(settings["mcpServers"]["auth-switch"], {"command": "/usr/bin/auth-switch-mcp", "args": []})
+        self.assertEqual(settings["preferences"], {"a": 1})
+        self.assertTrue(core.claude_registered())
+        core.claude_unregister()
+        self.assertNotIn("auth-switch", json.loads(desktop.read_text())["mcpServers"])
+        self.assertNotIn("auth-switch", json.loads((self.root / ".claude.json").read_text())["mcpServers"])
+        self.assertFalse(core.claude_registered())
+
+    def test_integration_lines_are_exempt_from_restricted_terms(self):
+        context = leaks.Context()
+        rules = {"terms": ["Acme"], "allow": ["Acme Tools", ".acme.json"]}
+        leaks._restricted_settings(context, {"restricted": rules})
+        self.assertEqual(leaks.scan_text('title=_("Acme Tools integration")', "t", context), [])
+        self.assertEqual(leaks.scan_text("Path.home() / '.acme.json'", "t", context), [])
+        attribution = leaks.scan_text("Co-Authored-By: Acme Tools <x@y.invalid>", "t", context)
+        self.assertEqual([f.kind for f in attribution], ["restricted-attribution"])
+        self.assertEqual([f.kind for f in leaks.scan_text("asked acme about it", "t", context)], ["restricted-term"])
+
+
 class DiscoveryTest(unittest.TestCase):
     def test_local_networks(self):
         interfaces = [
