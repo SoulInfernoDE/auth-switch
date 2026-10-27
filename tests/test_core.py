@@ -129,6 +129,54 @@ class AccountTest(unittest.TestCase):
         self.assertTrue(allow["delete"])
         self.assertEqual(core.managers_for(manager.host, TOKEN), [manager])
 
+    def test_subscription_and_repositories(self):
+        manager = core.find_account(TOKEN)
+        enterprise_on = {
+            "files": [
+                {"path": "/etc/apt/sources.list.d/pve-enterprise.sources", "repositories": [
+                    {"Enabled": 1, "URIs": ["https://enterprise.proxmox.com/debian/pve"], "Components": ["pve-enterprise"]}]},
+                {"path": "/etc/apt/sources.list.d/ceph.sources", "repositories": [
+                    {"Enabled": 1, "URIs": ["https://enterprise.proxmox.com/debian/ceph-squid"], "Components": ["enterprise"]}]},
+            ],
+            "standard-repos": [
+                {"handle": "enterprise", "status": 1}, {"handle": "no-subscription"},
+                {"handle": "ceph-squid-enterprise", "status": 1}, {"handle": "ceph-squid-no-subscription"},
+            ],
+        }
+        switched = {"files": [], "standard-repos": [{"handle": "no-subscription", "status": 1}]}
+        calls = []
+
+        def fake(host, token, secret, method, path, params=None, fingerprint=None):
+            calls.append((method, path, params))
+            if path == "/nodes":
+                return [{"node": "pve", "status": "online"}]
+            if path.endswith("/subscription"):
+                return {"status": "notfound"}
+            if path.endswith("/apt/repositories") and method == "GET":
+                return switched if any(c[0] == "POST" for c in calls) else enterprise_on
+
+        with mock.patch.object(core, "request", side_effect=fake):
+            self.assertEqual(core.inspect_server(manager.host, manager)["state"], core.NEEDS_SETUP)
+            self.assertEqual(core.stored_repository(manager.host), core.NEEDS_SETUP)
+            changes = core.use_no_subscription_repository(manager.host, manager)
+        writes = [(m, p["handle"] if "handle" in p else (p["path"], p["index"], p["enabled"])) for m, _path, p in calls if m != "GET"]
+        self.assertEqual(writes, [
+            ("PUT", "ceph-squid-no-subscription"),
+            ("PUT", "no-subscription"),
+            ("POST", ("/etc/apt/sources.list.d/pve-enterprise.sources", 0, False)),
+            ("POST", ("/etc/apt/sources.list.d/ceph.sources", 0, False)),
+        ])
+        self.assertEqual(len(changes), 4)
+        self.assertEqual(core.stored_repository(manager.host), core.NO_SUBSCRIPTION)
+
+    def test_notice_fix_command_is_self_contained(self):
+        import base64
+
+        encoded = core.notice_fix_command().split()[1]
+        self.assertEqual(base64.b64decode(encoded).decode(), core.NOTICE_FIX_SCRIPT)
+        self.assertIn("99-pve-subscription-notice", core.NOTICE_FIX_SCRIPT)
+        self.assertIn(r"void\(\{ \/\/\1/g", core.NOTICE_FIX_SCRIPT)
+
     def test_mcp_tools(self):
         names = [tool["name"] for tool in mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]]
         self.assertEqual(

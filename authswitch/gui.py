@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
 import threading
 from pathlib import Path
@@ -74,6 +75,7 @@ class Window(Adw.ApplicationWindow):
             ("web", lambda _a, p: self.open_uri(core.web_interface(p.unpack())), "s"),
             ("again", lambda _a, p: self.ask_account(*p.unpack()), "(ss)"),
             ("permissions", lambda _a, p: self.edit_permissions(*p.unpack()), "(ss)"),
+            ("repository", lambda _a, p: self.check_subscription(*p.unpack()), "(ss)"),
             ("remove", self.on_remove_action, "(ss)"),
         ):
             action = Gio.SimpleAction.new(name, GLib.VariantType.new(parameter))
@@ -170,8 +172,15 @@ class Window(Adw.ApplicationWindow):
 
     def build_host_group(self, host: str) -> Adw.PreferencesGroup:
         pinned = core.pinned_fingerprint(host)
-        description = _("Certificate confirmed by you") if pinned else _("Certificate trusted by the system")
-        group = Adw.PreferencesGroup(title=host, description=description)
+        parts = [_("Certificate confirmed by you") if pinned else _("Certificate trusted by the system")]
+        repository = {
+            core.ENTERPRISE: _("Enterprise Repository"),
+            core.NO_SUBSCRIPTION: _("No-Subscription Repository"),
+            core.NEEDS_SETUP: _("No subscription – repository not set up"),
+        }.get(core.stored_repository(host))
+        if repository:
+            parts.insert(0, repository)
+        group = Adw.PreferencesGroup(title=host, description=" · ".join(parts))
         button = Gtk.Button(icon_name="web-browser-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Open web interface"))
         button.add_css_class("flat")
         button.connect("clicked", lambda *_args: self.open_uri(core.web_interface(host)))
@@ -198,6 +207,7 @@ class Window(Adw.ApplicationWindow):
         menu = Gio.Menu()
         for label, action, value in (
             (_("Permissions…"), "win.permissions", target),
+            (_("Subscription and repository…"), "win.repository", target),
             (_("Open web interface"), "win.web", GLib.Variant("s", account.host)),
             (_("Enter secret again"), "win.again", target),
             (_("Remove"), "win.remove", target),
@@ -497,6 +507,7 @@ class Window(Adw.ApplicationWindow):
                 return
             self.toast(_("Added {token}").format(token=account.token_id), "success")
             self.reload(recheck=True)
+            self.check_subscription(account.host, account.token_id, quiet=True)
 
         def add(fingerprint: str = ""):
             run_async(lambda: core.add_account(host, token_id, secret, fingerprint), added)
@@ -537,6 +548,100 @@ class Window(Adw.ApplicationWindow):
         def on_response(_dialog, response):
             if response == "trust":
                 accept(fingerprint)
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    # --- subscription and repository ------------------------------------
+
+    def check_subscription(self, host: str, token_id: str, quiet: bool = False) -> None:
+        """Read subscription and repositories; offer to switch to the no-subscription repository if needed."""
+        managers = core.managers_for(host, token_id)
+
+        def inspected(result, error):
+            if error:
+                if not quiet:
+                    self.explain(_("Subscription could not be checked"), str(error) + "\n\n" + _(
+                        "Reading needs the right Sys.Audit on the nodes, changing it Sys.Modify, for example with a "
+                        "token of root@pam."
+                    ))
+                return
+            self.reload()
+            if result["state"] == core.NEEDS_SETUP:
+                self.offer_repository_setup(host, managers[0], result)
+            elif result["state"] == core.NO_SUBSCRIPTION:
+                self.offer_notice_fix(host, list(result["nodes"]))
+            elif not quiet:
+                self.toast(_("{host} has an active subscription and uses the enterprise repository").format(host=host))
+
+        run_async(lambda: core.inspect_server(host, managers[0]), inspected)
+
+    def offer_repository_setup(self, host: str, manager: core.Account, result: dict) -> None:
+        nodes = ", ".join(name for name, node in result["nodes"].items() if not node["subscribed"])
+        dialog = Adw.MessageDialog(
+            transient_for=self,
+            heading=_("No valid subscription"),
+            body=_(
+                "{nodes} on {host} have no active subscription, but the enterprise repository is still in use or "
+                "the no-subscription repository is missing, so updates fail. Auth-Switch can enable the "
+                "no-subscription repository, also for Ceph, and disable the enterprise repositories through the "
+                "Proxmox VE API. This is done with {token}."
+            ).format(nodes=nodes, host=host, token=manager.token_id),
+        )
+        dialog.add_response("cancel", _("Not now"))
+        dialog.add_response("setup", _("Set up"))
+        dialog.set_response_appearance("setup", Adw.ResponseAppearance.SUGGESTED)
+
+        def done(changes, error):
+            if error:
+                self.explain(_("Repositories could not be changed"), str(error))
+                return
+            self.toast(_("{host} now uses the no-subscription repository").format(host=host), "success")
+            self.reload()
+            self.offer_notice_fix(host, list(result["nodes"]))
+
+        def on_response(_dialog, response):
+            if response == "setup":
+                run_async(lambda: core.use_no_subscription_repository(host, manager), done)
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    def offer_notice_fix(self, host: str, nodes: list[str]) -> None:
+        """The notice can only be removed with root on the node; the API offers no way to do it."""
+        node = nodes[0] if nodes else ""
+        text = _(
+            "The web interface of {host} shows \"No valid subscription\" at every login. Auth-Switch can hide it "
+            "and install an APT hook that hides it again after updates. This needs root on the node: either over "
+            "SSH as root with your existing keys – nothing is typed or stored here – or by pasting a command into "
+            "the node shell."
+        ).format(host=host)
+        if len(nodes) > 1:
+            text += "\n\n" + _("Only the node you connect to is changed; repeat it on {nodes} if you use their web interface.").format(
+                nodes=", ".join(nodes[1:])
+            )
+        dialog = Adw.MessageDialog(transient_for=self, heading=_("Remove the subscription notice?"), body=text)
+        dialog.add_response("cancel", _("Not now"))
+        dialog.add_response("copy", _("Copy command"))
+        if shutil.which("ssh"):
+            dialog.add_response("ssh", _("Run over SSH"))
+            dialog.set_response_appearance("ssh", Adw.ResponseAppearance.SUGGESTED)
+
+        def done(output, error):
+            if error:
+                self.explain(
+                    _("SSH did not work"),
+                    str(error) + "\n\n" + _("Use \"Copy command\" and paste it into the node shell instead."),
+                )
+            else:
+                self.toast(_("Subscription notice removed on {host}").format(host=host), "success")
+
+        def on_response(_dialog, response):
+            if response == "ssh":
+                run_async(lambda: core.remove_notice_via_ssh(host), done)
+            elif response == "copy":
+                self.copy(core.notice_fix_command())
+                self.open_uri(core.node_shell_url(host, node))
 
         dialog.connect("response", on_response)
         dialog.present()

@@ -29,6 +29,10 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
   verwalten, Speicher, Konten, Netzwerke oder Knoten verwalten (Proxmox-VE-Rollen)
 - Einem Token den Zugriff auf einzelne Gäste, Speicher oder Knoten über ein
   Dropdown im Eintrag verweigern
+- Prüft beim Hinzufügen das Abonnement und zeigt, ob der Server das
+  Enterprise- oder das No-Subscription-Repository nutzt; ohne Abonnement kann
+  es die Repositories umstellen und den Hinweis „No valid subscription“
+  dauerhaft entfernen
 - Startet andere Werkzeuge mit dem aktiven Konto: `auth-switch exec -- terraform plan`
 - MCP-Server mit Lese- und Schreibzugriff auf die Proxmox-VE-API
 - Leak-Prüfung: findet Token-Geheimnisse, Serveradressen, deine echte
@@ -45,14 +49,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.0_all.deb
+sudo apt install ./auth-switch_0.3.1_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.0-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.1-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -88,6 +92,30 @@ Ausschalten verweigert dem Token den Zugriff darauf mit der Rolle *NoAccess*,
 die weiter gefasste Rechte wie eine Rolle auf `/` übersteuert; Einschalten
 entfernt diesen Eintrag wieder. Wie bei den Rollen geschieht das mit einem
 anderen Konto des Servers, auswählbar unten im Dropdown.
+
+## Server ohne Abonnement
+
+Nach dem Hinzufügen eines Kontos liest Auth-Switch das Abonnement und die
+Paket-Repositories aller Knoten und zeigt das Ergebnis neben dem Server an:
+*Enterprise-Repository* oder *No-Subscription-Repository*. Hat ein Knoten kein
+aktives Abonnement, nutzt aber noch das Enterprise-Repository, bietet es an,
+
+1. das No-Subscription-Repository einzuschalten – auch für Ceph – und die
+   Enterprise-Repositories abzuschalten. Das läuft über die Proxmox-VE-API und
+   funktioniert daher für die `.list`-Dateien von PVE 8 wie für die
+   `.sources`-Dateien von PVE 9;
+2. den Hinweis „No valid subscription“ der Weboberfläche zu entfernen. Dafür
+   bietet die API keinen Weg, es braucht root auf dem Knoten: per SSH als root
+   mit deinen vorhandenen Schlüsseln oder durch Einfügen eines Befehls in die
+   Node-Shell. Eingerichtet werden `/usr/local/sbin/pve-subscription-notice-hook`
+   und ein APT-Hook in `/etc/apt/apt.conf.d/99-pve-subscription-notice`, der den
+   Hinweis nach jedem Update von `proxmox-widget-toolkit` wieder ausblendet und
+   die Originaldatei als `proxmoxlib.js.auth-switch.orig` aufbewahrt. Löschen
+   beider Dateien macht es rückgängig.
+
+Zum Lesen braucht es das Recht `Sys.Audit` auf den Knoten, zum Umstellen der
+Repositories `Sys.Modify`, meist mit einem Token von `root@pam`. **Abonnement
+und Repository …** im Menü eines Kontos führt die Prüfung erneut aus.
 
 ## So werden Geheimnisse geschützt
 

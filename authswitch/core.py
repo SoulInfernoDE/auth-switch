@@ -95,6 +95,7 @@ def _load() -> dict[str, dict]:
                 "tokens": [str(token) for token in tokens],
                 "active": str(entry.get("active") or ""),
                 "fingerprint": str(entry.get("fingerprint") or ""),
+                "repository": str(entry.get("repository") or ""),
             }
     return hosts
 
@@ -354,7 +355,7 @@ def add_account(host: str, token_id: str, secret: str, fingerprint: str = "") ->
         raise AuthError(profile.detail or _("{host} did not answer like a Proxmox VE server.").format(host=host))
     store_secret(host, token_id, secret)
     hosts = _load()
-    entry = hosts.setdefault(host, {"tokens": [], "active": "", "fingerprint": ""})
+    entry = hosts.setdefault(host, {"tokens": [], "active": "", "fingerprint": "", "repository": ""})
     if token_id not in entry["tokens"]:
         entry["tokens"].append(token_id)
     entry["active"], entry["fingerprint"] = token_id, fingerprint
@@ -520,6 +521,144 @@ def set_denied(host: str, token_id: str, path: str, denied: bool, manager: Accou
     request(host, manager.token_id, _active_secret(manager), "PUT", "/access/acl", params)
 
 
+# --- subscription and package repositories ---------------------------------
+
+ENTERPRISE, NO_SUBSCRIPTION, NEEDS_SETUP = "enterprise", "no-subscription", "needs-setup"
+
+
+def stored_repository(host: str) -> str:
+    return _load().get(host, {}).get("repository", "")
+
+
+def _store_repository(host: str, state: str) -> None:
+    hosts = _load()
+    if host in hosts:
+        hosts[host]["repository"] = state
+        _write_private(accounts_file(), hosts)
+
+
+def _enterprise_entries(state: dict) -> list[tuple[str, int, dict]]:
+    """Enabled repositories that point at the paid enterprise mirror, as (file, index, entry)."""
+    found = []
+    for file in state.get("files") or []:
+        for index, entry in enumerate(file.get("repositories") or []):
+            if entry.get("Enabled") and any("enterprise.proxmox.com" in uri for uri in entry.get("URIs") or []):
+                found.append((file.get("path", ""), index, entry))
+    return found
+
+
+def _standard(state: dict, handle: str) -> dict:
+    return next((repo for repo in state.get("standard-repos") or [] if repo.get("handle") == handle), {})
+
+
+def inspect_server(host: str, manager: Account) -> dict:
+    """Subscription and repository state of every node, read with ``manager``'s rights."""
+    secret = _active_secret(manager)
+    nodes = {}
+    for node in request(host, manager.token_id, secret, "GET", "/nodes") or []:
+        name = node.get("node")
+        if not name or node.get("status") not in (None, "online"):
+            continue
+        subscription = request(host, manager.token_id, secret, "GET", f"/nodes/{name}/subscription") or {}
+        repositories = request(host, manager.token_id, secret, "GET", f"/nodes/{name}/apt/repositories") or {}
+        nodes[name] = {
+            "subscribed": subscription.get("status") == "active",
+            "enterprise_enabled": bool(_enterprise_entries(repositories)),
+            "no_subscription_enabled": _standard(repositories, "no-subscription").get("status") == 1,
+        }
+    if not nodes:
+        raise AuthError(_("No node of {host} could be read.").format(host=host))
+    if all(node["subscribed"] for node in nodes.values()):
+        state = ENTERPRISE
+    elif all(node["subscribed"] or (node["no_subscription_enabled"] and not node["enterprise_enabled"]) for node in nodes.values()):
+        state = NO_SUBSCRIPTION
+    else:
+        state = NEEDS_SETUP
+    _store_repository(host, state)
+    return {"state": state, "nodes": nodes}
+
+
+def use_no_subscription_repository(host: str, manager: Account) -> list[str]:
+    """On every node without a subscription: enable the no-subscription repositories, disable the enterprise ones.
+
+    Goes through the API (``/nodes/NODE/apt/repositories``), so it works for the
+    old ``.list`` and the new ``.sources`` format alike and covers Ceph.
+    """
+    secret = _active_secret(manager)
+    changed = []
+    for name, node in inspect_server(host, manager)["nodes"].items():
+        if node["subscribed"]:
+            continue
+        path = f"/nodes/{name}/apt/repositories"
+        state = request(host, manager.token_id, secret, "GET", path) or {}
+        enterprise = _enterprise_entries(state)
+        wanted = {"no-subscription"}
+        if any("/ceph" in uri for _file, _index, entry in enterprise for uri in entry.get("URIs") or []):
+            wanted |= {r["handle"] for r in state.get("standard-repos") or [] if str(r.get("handle", "")).startswith("ceph-") and r["handle"].endswith("-no-subscription")}
+        for handle in sorted(wanted):
+            if _standard(state, handle).get("status") != 1:
+                request(host, manager.token_id, secret, "PUT", path, {"handle": handle})
+                changed.append(f"{name}: + {handle}")
+        for file, index, entry in enterprise:
+            request(host, manager.token_id, secret, "POST", path, {"path": file, "index": index, "enabled": False})
+            changed.append(f"{name}: - {' '.join(entry.get('Components') or [])} ({file})")
+    inspect_server(host, manager)
+    return changed
+
+
+# Hides the "No valid subscription" notice and keeps it hidden after updates of
+# proxmox-widget-toolkit through an APT hook. Runs as root on the node.
+NOTICE_FIX_SCRIPT = r"""set -e
+cat > /usr/local/sbin/pve-subscription-notice-hook <<'HOOK'
+#!/bin/sh
+# Installed by Auth-Switch: hides the "No valid subscription" notice of the web interface.
+# Remove this file and /etc/apt/apt.conf.d/99-pve-subscription-notice to undo it.
+f=/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
+[ -f "$f" ] || exit 0
+grep -q "void({ //Ext.Msg.show" "$f" && exit 0
+grep -q "No valid sub" "$f" || exit 0
+cp "$f" "$f.auth-switch.orig"
+sed -Ezi "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" "$f"
+systemctl restart pveproxy.service || true
+exit 0
+HOOK
+chmod 0755 /usr/local/sbin/pve-subscription-notice-hook
+echo 'DPkg::Post-Invoke { "/usr/local/sbin/pve-subscription-notice-hook || true"; };' > /etc/apt/apt.conf.d/99-pve-subscription-notice
+/usr/local/sbin/pve-subscription-notice-hook
+echo "auth-switch: subscription notice removed on $(hostname)"
+"""
+
+
+def notice_fix_command() -> str:
+    """One line to paste into a root shell of the node."""
+    import base64
+
+    encoded = base64.b64encode(NOTICE_FIX_SCRIPT.encode()).decode()
+    return f"echo {encoded} | base64 -d | sh"
+
+
+def node_shell_url(host: str, node: str) -> str:
+    return f"https://{host}/?console=shell&xtermjs=1&vmid=0&vmname=&node={urllib.parse.quote(node)}&cmd="
+
+
+def remove_notice_via_ssh(host: str) -> str:
+    """Run the fix as root over SSH with the user's own keys; never asks for or stores a password."""
+    if not shutil.which("ssh"):
+        raise AuthError(_("ssh is not installed."))
+    name = split_host(host)[0]
+    try:
+        proc = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", f"root@{name}", "sh", "-s"],
+            input=NOTICE_FIX_SCRIPT, capture_output=True, text=True, timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        raise AuthError(_("SSH to {host} timed out.").format(host=name)) from None
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout).strip().splitlines()[-1:] or [""]
+        raise AuthError(_("SSH as root@{host} failed: {detail}").format(host=name, detail=detail[0]))
+    return proc.stdout.strip()
+
+
 def describe_accounts(check: bool = True) -> list[dict]:
     """Plain-data view of all accounts; never includes a secret."""
     described = []
@@ -529,6 +668,7 @@ def describe_accounts(check: bool = True) -> list[dict]:
             "token_id": account.token_id,
             "active": account.active,
             "pinned_certificate": bool(pinned_fingerprint(account.host)),
+            "repository": stored_repository(account.host),
         }
         if check:
             profile = fetch_profile(account)

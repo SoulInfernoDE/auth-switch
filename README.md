@@ -28,6 +28,10 @@ Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch)
   storage, accounts, networks or nodes (Proxmox VE roles)
 - Deny a token access to single guests, storages or nodes from a drop-down in
   its entry
+- Checks the subscription when an account is added and shows whether the
+  server uses the enterprise or the no-subscription repository; without a
+  subscription it can switch the repositories and remove the "No valid
+  subscription" notice for good
 - Runs other tools with the active account: `auth-switch exec -- terraform plan`
 - MCP server with read and write access to the Proxmox VE API
 - Leak check: finds token secrets, server addresses, your real e-mail address
@@ -44,14 +48,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.3.0_all.deb
+sudo apt install ./auth-switch_0.3.1_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.0-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.1-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -85,6 +89,28 @@ the token access to it with the *NoAccess* role, which overrides broader
 rights such as a role on `/`; switching it on again removes that entry. Like
 the roles, this is changed with another account of the server, selectable at
 the bottom of the drop-down.
+
+## Servers without a subscription
+
+After an account is added, Auth-Switch reads the subscription and the package
+repositories of every node and shows the result next to the server:
+*Enterprise Repository* or *No-Subscription Repository*. If a node has no
+active subscription but still uses the enterprise repository, it offers to
+
+1. enable the no-subscription repository – for Ceph too – and disable the
+   enterprise repositories. This goes through the Proxmox VE API, so it works
+   for the `.list` files of PVE 8 and the `.sources` files of PVE 9 alike;
+2. remove the "No valid subscription" notice of the web interface. The API
+   offers no way to do this, so it needs root on the node: over SSH as root
+   with your existing keys, or by pasting a command into the node shell. It
+   installs `/usr/local/sbin/pve-subscription-notice-hook` and an APT hook in
+   `/etc/apt/apt.conf.d/99-pve-subscription-notice`, which hides the notice
+   again after every update of `proxmox-widget-toolkit` and keeps the original
+   file as `proxmoxlib.js.auth-switch.orig`. Deleting both files undoes it.
+
+Reading needs the right `Sys.Audit` on the nodes and changing the repositories
+`Sys.Modify`, usually with a token of `root@pam`. **Subscription and
+repository…** in an account's menu runs the check again.
 
 ## How secrets are protected
 
