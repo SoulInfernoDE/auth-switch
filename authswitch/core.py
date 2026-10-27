@@ -737,10 +737,19 @@ cat > /usr/local/sbin/pve-subscription-notice-hook <<'HOOK'
 f=/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
 [ -f "$f" ] || exit 0
 grep -q "No valid sub" "$f" || exit 0
+saved=
+backup() { [ -n "$saved" ] || cp "$f" "$f.auth-switch.orig"; saved=1; }
+# Other recipes comment out the dialog, which also stops the action behind it; undo that first.
+if grep -q "void({ //" "$f"; then
+    backup
+    sed -Ezi "s/(void\(\{ \/\/)+(Ext\.Msg\.show)/\2/g" "$f"
+fi
 # Only the check in checked_command is changed, so the action behind the notice still runs.
-grep -Ezq "!res \|\|\s*res\s*\.data\.status\.toLowerCase\(\) !== 'active'" "$f" || exit 0
-cp "$f" "$f.auth-switch.orig"
-sed -Ezi "s/(!res \|\|\s*)res\s*\.data\.status\.toLowerCase\(\) !== 'active'/\1false/" "$f"
+if grep -Ezq "!res \|\|\s*res\s*\.data\.status\.toLowerCase\(\) !== 'active'" "$f"; then
+    backup
+    sed -Ezi "s/(!res \|\|\s*)res\s*\.data\.status\.toLowerCase\(\) !== 'active'/\1false/" "$f"
+fi
+[ -n "$saved" ] || exit 0
 systemctl restart pveproxy.service || true
 exit 0
 HOOK
@@ -749,6 +758,53 @@ echo 'DPkg::Post-Invoke { "/usr/local/sbin/pve-subscription-notice-hook || true"
 /usr/local/sbin/pve-subscription-notice-hook
 echo "auth-switch: subscription notice removed on $(hostname)"
 """
+
+
+NOTICE_REMOVED, NOTICE_SHOWN, NOTICE_BROKEN, NOTICE_UNKNOWN = "removed", "shown", "broken", "unknown"
+
+
+def _public_get(host: str, path: str) -> str:
+    """GET a public file of the web interface, without any credentials."""
+    connection = _Connection(host, pinned_fingerprint(host))
+    try:
+        connection.request("GET", path, headers={"User-Agent": f"{APP}/{__version__}"})
+        response = connection.getresponse()
+        text = response.read().decode("utf-8", "replace")
+    except (OSError, http.client.HTTPException) as error:
+        raise AuthError(_("{host} cannot be reached: {detail}").format(host=host, detail=error)) from None
+    finally:
+        connection.close()
+    if response.status != 200:
+        raise AuthError(f"HTTP {response.status} {response.reason}")
+    return text
+
+
+def notice_status(host: str) -> str:
+    """Whether the web interface still shows the subscription notice, read from the file it serves to everyone."""
+    page = _public_get(host, "/")
+    script = re.search(r'src="(/proxmoxlib\.js[^"]*)"', page)
+    source = _public_get(host, script.group(1) if script else "/proxmoxlib.js")
+    if "No valid sub" not in source:
+        return NOTICE_UNKNOWN
+    if "void({ //Ext.Msg.show" in source:
+        # Another recipe commented out the dialog; that also stops the actions behind it.
+        return NOTICE_BROKEN
+    if re.search(r"!res \|\|\s*res\s*\.data\.status\.toLowerCase\(\) !== 'active'", source):
+        return NOTICE_SHOWN
+    return NOTICE_REMOVED
+
+
+def ssh_ready(host: str) -> bool:
+    """Whether SSH as root works without any question, i.e. with a known host key and the user's own key."""
+    if not shutil.which("ssh"):
+        return False
+    try:
+        return subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", f"root@{split_host(host)[0]}", "true"],
+            capture_output=True, timeout=15,
+        ).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def notice_fix_command() -> str:

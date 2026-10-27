@@ -82,6 +82,7 @@ msgid "The secret could not be stored in the system keyring."
 msgstr ""
 
 #: authswitch/core.py:216 authswitch/core.py:230 authswitch/core.py:319
+#: authswitch/core.py:774 authswitch/rootshell.py:44
 #, python-brace-format
 msgid "{host} cannot be reached: {detail}"
 msgstr ""
@@ -245,26 +246,26 @@ msgstr ""
 msgid "No node of {host} could be read."
 msgstr ""
 
-#: authswitch/core.py:773
+#: authswitch/core.py:829
 msgid "ssh is not installed."
 msgstr ""
 
-#: authswitch/core.py:781
+#: authswitch/core.py:837
 #, python-brace-format
 msgid "SSH to {host} timed out."
 msgstr ""
 
-#: authswitch/core.py:784
+#: authswitch/core.py:840
 #, python-brace-format
 msgid "SSH as root@{host} failed: {detail}"
 msgstr ""
 
-#: authswitch/core.py:821
+#: authswitch/core.py:877
 #, python-brace-format
 msgid "Task on {node} failed: {status}"
 msgstr ""
 
-#: authswitch/core.py:824
+#: authswitch/core.py:880
 #, python-brace-format
 msgid "Task on {node} did not finish in time."
 msgstr ""
@@ -294,7 +295,7 @@ msgstr ""
 msgid "Show"
 msgstr ""
 
-#: authswitch/gui.py:115 authswitch/gui.py:832
+#: authswitch/gui.py:115 authswitch/gui.py:785 authswitch/gui.py:951
 msgid "Close"
 msgstr ""
 
@@ -382,7 +383,7 @@ msgstr ""
 msgid "Server not reachable"
 msgstr ""
 
-#: authswitch/gui.py:267 authswitch/gui.py:802
+#: authswitch/gui.py:267 authswitch/gui.py:921
 #, python-brace-format
 msgid "Proxmox VE {version}"
 msgstr ""
@@ -417,7 +418,7 @@ msgid ""
 msgstr ""
 
 #: authswitch/gui.py:306 authswitch/gui.py:481 authswitch/gui.py:570
-#: authswitch/gui.py:633 authswitch/gui.py:850
+#: authswitch/gui.py:633 authswitch/gui.py:822 authswitch/gui.py:969
 msgid "Cancel"
 msgstr ""
 
@@ -631,166 +632,229 @@ msgstr ""
 msgid "It can sign in, but may not read or change anything."
 msgstr ""
 
-#: authswitch/gui.py:663
+#: authswitch/gui.py:671
 msgid "Subscription could not be checked"
 msgstr ""
 
-#: authswitch/gui.py:664
-msgid ""
-"Reading needs the right Sys.Audit on the nodes, changing it Sys.Modify, for "
-"example with a token of root@pam."
+#: authswitch/gui.py:701
+msgid "Subscription"
 msgstr ""
 
-#: authswitch/gui.py:674
+#: authswitch/gui.py:704
+msgid "Active on every node"
+msgstr ""
+
+#: authswitch/gui.py:704
 #, python-brace-format
-msgid "{host} has an active subscription and uses the enterprise repository"
+msgid "None on {nodes} – that is fine for home and test use"
 msgstr ""
 
-#: authswitch/gui.py:682
-msgid "No valid subscription"
+#: authswitch/gui.py:707
+msgid "Package repositories"
 msgstr ""
 
-#: authswitch/gui.py:684
-#, python-brace-format
+#: authswitch/gui.py:708
+msgid "Switch over"
+msgstr ""
+
+#: authswitch/gui.py:711
+msgid "\"No valid subscription\" notice"
+msgstr ""
+
+#: authswitch/gui.py:719
+msgid "Enterprise repository"
+msgstr ""
+
+#: authswitch/gui.py:720
+msgid "No-subscription repository – updates work"
+msgstr ""
+
+#: authswitch/gui.py:721
+msgid "Enterprise repository without subscription – updates fail"
+msgstr ""
+
+#: authswitch/gui.py:728
+msgid "Hidden; the actions behind it keep working"
+msgstr ""
+
+#: authswitch/gui.py:729
+msgid "Shown at every login"
+msgstr ""
+
+#: authswitch/gui.py:730
 msgid ""
-"{nodes} on {host} have no active subscription, but the enterprise repository "
-"is still in use or the no-subscription repository is missing, so updates "
-"fail. Auth-Switch can enable the no-subscription repository, also for Ceph, "
-"and disable the enterprise repositories through the Proxmox VE API. This is "
-"done with {token}."
+"Hidden by another recipe that also stops actions such as adding a repository"
 msgstr ""
 
-#: authswitch/gui.py:690 authswitch/gui.py:723
-msgid "Not now"
+#: authswitch/gui.py:731
+msgid "Could not be determined"
 msgstr ""
 
-#: authswitch/gui.py:691
-msgid "Set up"
+#: authswitch/gui.py:734
+msgid "Remove…"
 msgstr ""
 
-#: authswitch/gui.py:696
+#: authswitch/gui.py:734
+msgid "Repair…"
+msgstr ""
+
+#: authswitch/gui.py:743
 msgid "Repositories could not be changed"
 msgstr ""
 
-#: authswitch/gui.py:698
+#: authswitch/gui.py:746
 #, python-brace-format
 msgid "{host} now uses the no-subscription repository"
 msgstr ""
 
-#: authswitch/gui.py:713
-#, python-brace-format
-msgid ""
-"The web interface of {host} shows \"No valid subscription\" at every login. "
-"Auth-Switch can hide it and install an APT hook that hides it again after "
-"updates. This needs root on the node: either over SSH as root with your "
-"existing keys – nothing is typed or stored here – or by pasting a command "
-"into the node shell."
-msgstr ""
-
-#: authswitch/gui.py:719
-#, python-brace-format
-msgid ""
-"Only the node you connect to is changed; repeat it on {nodes} if you use "
-"their web interface."
-msgstr ""
-
-#: authswitch/gui.py:722
-msgid "Remove the subscription notice?"
-msgstr ""
-
-#: authswitch/gui.py:724
-msgid "Copy command"
-msgstr ""
-
-#: authswitch/gui.py:726
-msgid "Run over SSH"
-msgstr ""
-
-#: authswitch/gui.py:732
-msgid "SSH did not work"
-msgstr ""
-
-#: authswitch/gui.py:733
-msgid "Use \"Copy command\" and paste it into the node shell instead."
-msgstr ""
-
-#: authswitch/gui.py:736
+#: authswitch/gui.py:763
 #, python-brace-format
 msgid "Subscription notice removed on {host}"
 msgstr ""
 
-#: authswitch/gui.py:755
+#: authswitch/gui.py:781
+msgid "Subscription and repository"
+msgstr ""
+
+#: authswitch/gui.py:782
+#, python-brace-format
+msgid "{host}: what is set up, and what Auth-Switch can do for you."
+msgstr ""
+
+#: authswitch/gui.py:795
+msgid "Password of root@pam (not stored)"
+msgstr ""
+
+#: authswitch/gui.py:796
+msgid "One-time code (two-factor authentication)"
+msgstr ""
+
+#: authswitch/gui.py:801
+msgid "Show what runs as root"
+msgstr ""
+
+#: authswitch/gui.py:813
+#, python-brace-format
+msgid "Hide the notice on {node}"
+msgstr ""
+
+#: authswitch/gui.py:815
+msgid ""
+"This changes a file of the web interface and installs an APT hook that keeps "
+"the change after updates, so it has to run as root. Easiest: enter the root "
+"password – Auth-Switch signs in once, runs the script in the node's own root "
+"console over the connection you already trust, and forgets the password "
+"right away."
+msgstr ""
+
+#: authswitch/gui.py:823
+msgid "Do it myself"
+msgstr ""
+
+#: authswitch/gui.py:825
+msgid "Over SSH"
+msgstr ""
+
+#: authswitch/gui.py:826
+msgid "Run with password"
+msgstr ""
+
+#: authswitch/gui.py:838
+msgid "The notice could not be removed"
+msgstr ""
+
+#: authswitch/gui.py:847
+msgid "Signing in as root@pam and running the script…"
+msgstr ""
+
+#: authswitch/gui.py:855
+msgid "Paste the command in the node shell"
+msgstr ""
+
+#: authswitch/gui.py:857
+#, python-brace-format
+msgid ""
+"The command is in the clipboard and the web interface is opening. Sign in "
+"there, select {node} and open Shell, then paste the command and press Enter. "
+"This window notices by itself when the notice is gone."
+msgstr ""
+
+#: authswitch/gui.py:860
+msgid "the node"
+msgstr ""
+
+#: authswitch/gui.py:874
 msgid "Server could not be read"
 msgstr ""
 
-#: authswitch/gui.py:756
+#: authswitch/gui.py:875
 msgid ""
 "This needs Sys.Audit, and Sys.Modify for changes, for example with a token "
 "of root@pam."
 msgstr ""
 
-#: authswitch/gui.py:769
+#: authswitch/gui.py:888
 msgid "Browser default"
 msgstr ""
 
-#: authswitch/gui.py:771
+#: authswitch/gui.py:890
 msgid "Language of the web interface"
 msgstr ""
 
-#: authswitch/gui.py:772
+#: authswitch/gui.py:891
 msgid "Default for everyone who has not chosen a language at login"
 msgstr ""
 
-#: authswitch/gui.py:780
+#: authswitch/gui.py:899
 msgid "Language could not be changed"
 msgstr ""
 
-#: authswitch/gui.py:782
+#: authswitch/gui.py:901
 #, python-brace-format
 msgid "Language of the web interface: {language}"
 msgstr ""
 
-#: authswitch/gui.py:792
+#: authswitch/gui.py:911
 msgid "Upgrade"
 msgstr ""
 
-#: authswitch/gui.py:801
+#: authswitch/gui.py:920
 msgid "up to date"
 msgstr ""
 
-#: authswitch/gui.py:801
+#: authswitch/gui.py:920
 #, python-brace-format
 msgid "{count} updates available"
 msgstr ""
 
-#: authswitch/gui.py:807
+#: authswitch/gui.py:926
 msgid "Check for updates"
 msgstr ""
 
-#: authswitch/gui.py:807
+#: authswitch/gui.py:926
 msgid "Runs apt update on every node"
 msgstr ""
 
-#: authswitch/gui.py:816
+#: authswitch/gui.py:935
 msgid "Updates could not be checked"
 msgstr ""
 
-#: authswitch/gui.py:828
+#: authswitch/gui.py:947
 msgid ""
 "Upgrade installs all pending updates of a node, the same as the Upgrade "
 "button of the web interface. It stays within the installed major version; "
 "moving to the next one needs the official upgrade guide."
 msgstr ""
 
-#: authswitch/gui.py:831
+#: authswitch/gui.py:950
 msgid "Updates and language"
 msgstr ""
 
-#: authswitch/gui.py:834
+#: authswitch/gui.py:953
 msgid "Major upgrade guide"
 msgstr ""
 
-#: authswitch/gui.py:845
+#: authswitch/gui.py:964
 #, python-brace-format
 msgid ""
 "Installs {count} updates on {node} with apt dist-upgrade. Running guests "
@@ -799,77 +863,77 @@ msgid ""
 "root with your existing keys."
 msgstr ""
 
-#: authswitch/gui.py:849
+#: authswitch/gui.py:968
 #, python-brace-format
 msgid "Upgrade {node}?"
 msgstr ""
 
-#: authswitch/gui.py:851
+#: authswitch/gui.py:970
 msgid "Open upgrade console"
 msgstr ""
 
-#: authswitch/gui.py:853
+#: authswitch/gui.py:972
 msgid "Upgrade over SSH"
 msgstr ""
 
-#: authswitch/gui.py:858
+#: authswitch/gui.py:977
 msgid "Upgrade failed"
 msgstr ""
 
-#: authswitch/gui.py:858
+#: authswitch/gui.py:977
 msgid "Use the upgrade console instead."
 msgstr ""
 
-#: authswitch/gui.py:860
+#: authswitch/gui.py:979
 #, python-brace-format
 msgid "{node} is up to date"
 msgstr ""
 
-#: authswitch/gui.py:862
+#: authswitch/gui.py:981
 msgid "Reboot recommended"
 msgstr ""
 
-#: authswitch/gui.py:862
+#: authswitch/gui.py:981
 #, python-brace-format
 msgid "{node} has a new kernel; it takes effect after a reboot."
 msgstr ""
 
-#: authswitch/gui.py:869
+#: authswitch/gui.py:988
 #, python-brace-format
 msgid "Upgrading {node}… this can take a few minutes"
 msgstr ""
 
-#: authswitch/gui.py:878
+#: authswitch/gui.py:997
 msgid "Options"
 msgstr ""
 
-#: authswitch/gui.py:881
+#: authswitch/gui.py:1000
 msgid "MCP server"
 msgstr ""
 
-#: authswitch/gui.py:882
+#: authswitch/gui.py:1001
 msgid ""
 "Lets AI assistants with MCP support use your Proxmox VE accounts; copy the "
 "entry for their configuration"
 msgstr ""
 
-#: authswitch/gui.py:884
+#: authswitch/gui.py:1003
 msgid "Copy entry"
 msgstr ""
 
-#: authswitch/gui.py:889
+#: authswitch/gui.py:1008
 msgid "Sound effects"
 msgstr ""
 
-#: authswitch/gui.py:894
+#: authswitch/gui.py:1013
 msgid "Check for updates on start"
 msgstr ""
 
-#: authswitch/gui.py:895
+#: authswitch/gui.py:1014
 msgid "Asks GitHub for the latest release, without any account"
 msgstr ""
 
-#: authswitch/gui.py:906
+#: authswitch/gui.py:1025
 #, python-brace-format
 msgid "Auth-Switch {version} is available"
 msgstr ""
@@ -1085,4 +1149,38 @@ msgstr ""
 
 #: authswitch/mcp.py:235
 msgid "Parse error"
+msgstr ""
+
+#: authswitch/rootshell.py:48
+msgid "The server rejected the user name or password."
+msgstr ""
+
+#: authswitch/rootshell.py:59
+msgid "This account uses two-factor authentication; enter the one-time code."
+msgstr ""
+
+#: authswitch/rootshell.py:62
+msgid "The server did not issue a session."
+msgstr ""
+
+#: authswitch/rootshell.py:87
+msgid "The console closed the connection."
+msgstr ""
+
+#: authswitch/rootshell.py:123
+#, python-brace-format
+msgid "The console could not be opened: {detail}"
+msgstr ""
+
+#: authswitch/rootshell.py:136
+msgid "The console refused the session."
+msgstr ""
+
+#: authswitch/rootshell.py:156
+msgid "The console did not finish in time."
+msgstr ""
+
+#: authswitch/rootshell.py:176
+#, python-brace-format
+msgid "The fix failed on {node}: {detail}"
 msgstr ""

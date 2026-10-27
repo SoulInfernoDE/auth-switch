@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from authswitch import core, discovery, leaks, mcp, update
+from authswitch import core, discovery, leaks, mcp, rootshell, update
 
 TOKEN = "root@pam!automation"
 SECRET = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0"
@@ -176,7 +176,7 @@ class AccountTest(unittest.TestCase):
         self.assertEqual(base64.b64decode(encoded).decode(), core.NOTICE_FIX_SCRIPT)
         self.assertIn("99-pve-subscription-notice", core.NOTICE_FIX_SCRIPT)
         self.assertIn(r"/\1false/", core.NOTICE_FIX_SCRIPT)
-        self.assertNotIn("void(", core.NOTICE_FIX_SCRIPT)
+        self.assertIn(r"(void\(\{ \/\/)+(Ext\.Msg\.show)/\2/g", core.NOTICE_FIX_SCRIPT)
 
     def test_web_language(self):
         manager = core.find_account(TOKEN)
@@ -341,6 +341,91 @@ class InputTest(unittest.TestCase):
 
     def test_form_encoding(self):
         self.assertEqual(core._encode({"onboot": True, "memory": 2048, "skip": None}), "onboot=1&memory=2048")
+
+
+class NoticeTest(unittest.TestCase):
+    PAGE = '<script type="text/javascript" src="/proxmoxlib.js?ver=v5.2.10-t1"></script>'
+    SHOWN = "!res ||\n    res.data.status.toLowerCase() !== 'active'\n) {\n    Ext.Msg.show({\n title: gettext('No valid sub"
+
+    def status(self, source):
+        with mock.patch.object(core, "_public_get", side_effect=lambda host, path: self.PAGE if path == "/" else source):
+            return core.notice_status("pve.example.com:8006")
+
+    def test_notice_states(self):
+        self.assertEqual(self.status(self.SHOWN), core.NOTICE_SHOWN)
+        self.assertEqual(self.status(self.SHOWN.replace("Ext.Msg.show", "void({ //void({ //Ext.Msg.show")), core.NOTICE_BROKEN)
+        self.assertEqual(self.status(self.SHOWN.replace("res.data.status.toLowerCase() !== 'active'", "false")), core.NOTICE_REMOVED)
+        self.assertEqual(self.status("nothing"), core.NOTICE_UNKNOWN)
+
+
+class _FakeSocket:
+    """Plays the server side of the console websocket."""
+
+    def __init__(self, replies):
+        self.inbox = b"".join(self.frame(reply) for reply in replies)
+        self.sent = []
+
+    @staticmethod
+    def frame(payload):
+        return bytes([0x82, len(payload)]) + payload if len(payload) < 126 else bytes([0x82, 126]) + len(payload).to_bytes(2, "big") + payload
+
+    def recv(self, count):
+        chunk, self.inbox = self.inbox[:count], self.inbox[count:]
+        return chunk
+
+    def sendall(self, data):
+        opcode, payload = rootshell._read_frame(_FakeSocket.reader(data))
+        self.sent.append(payload)
+
+    @staticmethod
+    def reader(data):
+        class Reader:
+            buffer = data
+
+            def recv(self, count):
+                chunk, Reader.buffer = Reader.buffer[:count], Reader.buffer[count:]
+                return chunk
+
+        return Reader()
+
+    def settimeout(self, _value):
+        pass
+
+    def close(self):
+        pass
+
+
+class RootShellTest(unittest.TestCase):
+    def test_two_factor_needs_a_code(self):
+        answers = [{"NeedTFA": 1, "ticket": "PVE:partial"}, {"ticket": "PVE:full", "CSRFPreventionToken": "csrf", "username": "root@pam"}]
+        with mock.patch.object(rootshell, "_post", side_effect=lambda *a, **k: answers.pop(0)) as post:
+            with self.assertRaises(rootshell.TwoFactorRequired):
+                rootshell.sign_in("h:8006", "root@pam", "pw")
+        answers[:0] = [{"NeedTFA": 1, "ticket": "PVE:partial"}]
+        with mock.patch.object(rootshell, "_post", side_effect=lambda *a, **k: answers.pop(0)) as post:
+            session = rootshell.sign_in("h:8006", "root@pam", "pw", "123456")
+        self.assertEqual(session["ticket"], "PVE:full")
+        self.assertEqual(post.call_args.args[2], {"username": "root@pam", "tfa-challenge": "PVE:partial", "password": "totp:123456"})
+
+    def test_script_runs_in_the_console(self):
+        sock = _FakeSocket([b"OK", b"echo ...base64 -d | sh; echo AUTH-SWITCH-EXIT:$?\r\n", b"auth-switch: subscription notice removed on pve\r\nAUTH-SWITCH-EXIT:0\r\n"])
+        proxy = {"port": 5900, "ticket": "PVEVNC:abc", "user": "root@pam"}
+        with mock.patch.object(rootshell, "_post", return_value=proxy), mock.patch.object(rootshell, "_open_websocket", return_value=sock) as ws:
+            status, output = rootshell.run_script("h:8006", "pve", {"ticket": "T", "csrf": "C"}, "echo hi\n")
+        self.assertEqual(status, 0)
+        self.assertIn("notice removed on pve", output)
+        self.assertIn("vncticket=PVEVNC%3Aabc", ws.call_args.args[1])
+        self.assertEqual(sock.sent[0], b"root@pam:PVEVNC:abc\n")
+        line = sock.sent[2].split(b":", 2)[2]
+        encoded = line.split()[1]
+        import base64
+        self.assertEqual(base64.b64decode(encoded), b"echo hi\n")
+        self.assertEqual(sock.sent[-1], b"0:5:exit\n")
+
+    def test_frames_are_masked_and_readable(self):
+        frame = rootshell._frame(b"x" * 300)
+        self.assertTrue(frame[1] & 0x80)
+        self.assertEqual(rootshell._read_frame(_FakeSocket.reader(frame)), (0x2, b"x" * 300))
 
 
 class DiscoveryTest(unittest.TestCase):

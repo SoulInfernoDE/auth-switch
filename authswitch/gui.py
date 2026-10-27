@@ -13,7 +13,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import __version__, core, discovery, sound, update  # noqa: E402
+from . import __version__, core, discovery, rootshell, sound, update  # noqa: E402
 from .i18n import _  # noqa: E402
 
 APP_ID = ICON_NAME = "dev.authswitch.AuthSwitch"
@@ -84,7 +84,7 @@ class Window(Adw.ApplicationWindow):
             ("web", lambda _a, p: self.open_uri(core.web_interface(p.unpack())), "s"),
             ("again", lambda _a, p: self.ask_account(*p.unpack()), "(ss)"),
             ("permissions", lambda _a, p: self.edit_permissions(*p.unpack()), "(ss)"),
-            ("repository", lambda _a, p: self.check_subscription(*p.unpack()), "(ss)"),
+            ("repository", lambda _a, p: self.open_subscription(*p.unpack()), "(ss)"),
             ("maintenance", lambda _a, p: self.open_maintenance(*p.unpack()), "(ss)"),
             ("remove", self.on_remove_action, "(ss)"),
         ):
@@ -651,96 +651,215 @@ class Window(Adw.ApplicationWindow):
                 _("It can sign in, but may not read or change anything.") + "\n\n" + PRIVILEGE_HINT(),
             )
             return
-        self.check_subscription(account.host, account.token_id, quiet=True)
+        self.open_subscription(account.host, account.token_id, only_if_needed=True)
 
-    def check_subscription(self, host: str, token_id: str, quiet: bool = False) -> None:
-        """Read subscription and repositories; offer to switch to the no-subscription repository if needed."""
-        managers = core.managers_for(host, token_id)
+    def open_subscription(self, host: str, token_id: str, only_if_needed: bool = False) -> None:
+        """Checklist of subscription, repositories and notice, each with the one action it may need."""
+        manager = core.managers_for(host, token_id)[0]
 
-        def inspected(result, error):
+        def gather():
+            server = core.inspect_server(host, manager)
+            try:
+                notice = core.notice_status(host)
+            except core.AuthError:
+                notice = core.NOTICE_UNKNOWN
+            return server, notice, core.ssh_ready(host), rootshell.local_node(host, manager)
+
+        def loaded(result, error):
             if error:
-                if not quiet:
-                    self.explain(_("Subscription could not be checked"), str(error) + "\n\n" + _(
-                        "Reading needs the right Sys.Audit on the nodes, changing it Sys.Modify, for example with a "
-                        "token of root@pam."
-                    ))
+                if not only_if_needed:
+                    self.explain(_("Subscription could not be checked"), str(error))
                 return
+            server, notice, ssh, node = result
             self.reload()
-            if result["state"] == core.NEEDS_SETUP:
-                self.offer_repository_setup(host, managers[0], result)
-            elif result["state"] == core.NO_SUBSCRIPTION:
-                self.offer_notice_fix(host, list(result["nodes"]))
-            elif not quiet:
-                self.toast(_("{host} has an active subscription and uses the enterprise repository").format(host=host))
+            done = server["state"] == core.ENTERPRISE or (
+                server["state"] == core.NO_SUBSCRIPTION and notice in (core.NOTICE_REMOVED, core.NOTICE_UNKNOWN)
+            )
+            if only_if_needed and done:
+                return
+            self.show_subscription(host, manager, server, notice, ssh, node)
 
-        run_async(lambda: core.inspect_server(host, managers[0]), inspected)
+        run_async(gather, loaded)
 
-    def offer_repository_setup(self, host: str, manager: core.Account, result: dict) -> None:
-        nodes = ", ".join(name for name, node in result["nodes"].items() if not node["subscribed"])
-        dialog = Adw.MessageDialog(
-            transient_for=self,
-            heading=_("No valid subscription"),
-            body=_(
-                "{nodes} on {host} have no active subscription, but the enterprise repository is still in use or "
-                "the no-subscription repository is missing, so updates fail. Auth-Switch can enable the "
-                "no-subscription repository, also for Ceph, and disable the enterprise repositories through the "
-                "Proxmox VE API. This is done with {token}."
-            ).format(nodes=nodes, host=host, token=manager.token_id),
+    def show_subscription(self, host, manager, server, notice, ssh, node) -> None:
+        unsubscribed = [name for name, entry in server["nodes"].items() if not entry["subscribed"]]
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.set_size_request(440, -1)
+
+        def status_row(title):
+            row = Adw.ActionRow(title=title, use_markup=False)
+            icon = Gtk.Image()
+            row.add_prefix(icon)
+            rows.append(row)
+            return row, icon
+
+        def mark(row, icon, ok, text):
+            icon.set_from_icon_name("emblem-ok-symbolic" if ok else "dialog-warning-symbolic")
+            row.set_subtitle(text)
+
+        subscription_row, subscription_icon = status_row(_("Subscription"))
+        mark(
+            subscription_row, subscription_icon, True,
+            _("Active on every node") if not unsubscribed else _("None on {nodes} – that is fine for home and test use").format(nodes=", ".join(unsubscribed)),
         )
-        dialog.add_response("cancel", _("Not now"))
-        dialog.add_response("setup", _("Set up"))
-        dialog.set_response_appearance("setup", Adw.ResponseAppearance.SUGGESTED)
 
-        def done(changes, error):
+        repository_row, repository_icon = status_row(_("Package repositories"))
+        repository_button = Gtk.Button(label=_("Switch over"), valign=Gtk.Align.CENTER, visible=False)
+        repository_row.add_suffix(repository_button)
+
+        notice_row, notice_icon = status_row(_("\"No valid subscription\" notice"))
+        notice_row.set_visible(bool(unsubscribed))
+        notice_button = Gtk.Button(valign=Gtk.Align.CENTER, visible=False)
+        notice_row.add_suffix(notice_button)
+
+        def show_repository(state):
+            needs = state == core.NEEDS_SETUP
+            texts = {
+                core.ENTERPRISE: _("Enterprise repository"),
+                core.NO_SUBSCRIPTION: _("No-subscription repository – updates work"),
+                core.NEEDS_SETUP: _("Enterprise repository without subscription – updates fail"),
+            }
+            mark(repository_row, repository_icon, not needs, texts.get(state, ""))
+            repository_button.set_visible(needs)
+
+        def show_notice(state):
+            texts = {
+                core.NOTICE_REMOVED: _("Hidden; the actions behind it keep working"),
+                core.NOTICE_SHOWN: _("Shown at every login"),
+                core.NOTICE_BROKEN: _("Hidden by another recipe that also stops actions such as adding a repository"),
+                core.NOTICE_UNKNOWN: _("Could not be determined"),
+            }
+            mark(notice_row, notice_icon, state in (core.NOTICE_REMOVED, core.NOTICE_UNKNOWN), texts[state])
+            notice_button.set_label(_("Repair…") if state == core.NOTICE_BROKEN else _("Remove…"))
+            notice_button.set_visible(state in (core.NOTICE_SHOWN, core.NOTICE_BROKEN))
+
+        show_repository(server["state"])
+        show_notice(notice)
+
+        def repository_done(result, error):
+            repository_button.set_sensitive(True)
             if error:
                 self.explain(_("Repositories could not be changed"), str(error))
                 return
+            show_repository(core.stored_repository(host))
             self.toast(_("{host} now uses the no-subscription repository").format(host=host), "success")
             self.reload()
-            self.offer_notice_fix(host, list(result["nodes"]))
 
-        def on_response(_dialog, response):
-            if response == "setup":
-                run_async(lambda: core.use_no_subscription_repository(host, manager), done)
+        def switch_repository(*_args):
+            repository_button.set_sensitive(False)
+            run_async(lambda: core.use_no_subscription_repository(host, manager), repository_done)
 
-        dialog.connect("response", on_response)
+        repository_button.connect("clicked", switch_repository)
+
+        poll = {"source": 0, "until": 0.0}
+
+        def check_notice():
+            def checked(state, error):
+                if not error:
+                    show_notice(state)
+                    if state == core.NOTICE_REMOVED:
+                        poll["until"] = 0
+                        self.toast(_("Subscription notice removed on {host}").format(host=host), "success")
+
+            run_async(lambda: core.notice_status(host), checked)
+            if GLib.get_monotonic_time() / 1e6 < poll["until"]:
+                return GLib.SOURCE_CONTINUE
+            poll["source"] = 0
+            return GLib.SOURCE_REMOVE
+
+        def watch_notice(seconds: int) -> None:
+            """Keep reading the state for a while, e.g. while the user pastes the command into the shell."""
+            poll["until"] = GLib.get_monotonic_time() / 1e6 + seconds
+            if not poll["source"]:
+                poll["source"] = GLib.timeout_add_seconds(4, check_notice)
+
+        notice_button.connect("clicked", lambda *_a: self.ask_notice_fix(host, node, ssh, watch_notice))
+
+        dialog = Adw.MessageDialog(
+            transient_for=self,
+            heading=_("Subscription and repository"),
+            body=_("{host}: what is set up, and what Auth-Switch can do for you.").format(host=host),
+            extra_child=rows,
+        )
+        dialog.add_response("close", _("Close"))
+
+        def closed(*_args):
+            poll["until"] = 0
+
+        dialog.connect("response", closed)
         dialog.present()
 
-    def offer_notice_fix(self, host: str, nodes: list[str]) -> None:
-        """The notice can only be removed with root on the node; the API offers no way to do it."""
-        node = nodes[0] if nodes else ""
-        text = _(
-            "The web interface of {host} shows \"No valid subscription\" at every login. Auth-Switch can hide it "
-            "and install an APT hook that hides it again after updates. This needs root on the node: either over "
-            "SSH as root with your existing keys – nothing is typed or stored here – or by pasting a command into "
-            "the node shell."
-        ).format(host=host)
-        if len(nodes) > 1:
-            text += "\n\n" + _("Only the node you connect to is changed; repeat it on {nodes} if you use their web interface.").format(
-                nodes=", ".join(nodes[1:])
-            )
-        dialog = Adw.MessageDialog(transient_for=self, heading=_("Remove the subscription notice?"), body=text)
-        dialog.add_response("cancel", _("Not now"))
-        dialog.add_response("copy", _("Copy command"))
-        if shutil.which("ssh"):
-            dialog.add_response("ssh", _("Run over SSH"))
-            dialog.set_response_appearance("ssh", Adw.ResponseAppearance.SUGGESTED)
+    def ask_notice_fix(self, host: str, node: str, ssh: bool, watch) -> None:
+        """Three ways to run the fix as root; the script is shown before anything runs."""
+        password = Adw.PasswordEntryRow(title=_("Password of root@pam (not stored)"))
+        code = Adw.EntryRow(title=_("One-time code (two-factor authentication)"), visible=False)
+        script = Gtk.Label(label=core.NOTICE_FIX_SCRIPT.strip(), selectable=True, xalign=0, wrap=False)
+        script.add_css_class("monospace")
+        script.add_css_class("caption")
+        shown = Gtk.ScrolledWindow(child=script, min_content_height=160, max_content_height=220)
+        expander = Gtk.Expander(label=_("Show what runs as root"), child=shown)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.set_size_request(440, -1)
+        rows.append(password)
+        rows.append(code)
+        box.append(rows)
+        box.append(expander)
 
-        def done(output, error):
+        dialog = Adw.MessageDialog(
+            transient_for=self,
+            heading=_("Hide the notice on {node}").format(node=node or host),
+            body=_(
+                "This changes a file of the web interface and installs an APT hook that keeps the change after "
+                "updates, so it has to run as root. Easiest: enter the root password – Auth-Switch signs in once, "
+                "runs the script in the node's own root console over the connection you already trust, and forgets "
+                "the password right away."
+            ),
+            extra_child=box,
+        )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("manual", _("Do it myself"))
+        if ssh:
+            dialog.add_response("ssh", _("Over SSH"))
+        dialog.add_response("password", _("Run with password"))
+        dialog.set_response_appearance("password", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_response_enabled("password", False)
+        password.connect("changed", lambda *_a: dialog.set_response_enabled("password", bool(password.get_text())))
+        dialog.set_close_response("cancel")
+
+        def finished(_result, error):
+            if isinstance(error, rootshell.TwoFactorRequired):
+                code.set_visible(True)
+                dialog.present()
+                return
             if error:
-                self.explain(
-                    _("SSH did not work"),
-                    str(error) + "\n\n" + _("Use \"Copy command\" and paste it into the node shell instead."),
-                )
-            else:
-                self.toast(_("Subscription notice removed on {host}").format(host=host), "success")
+                self.explain(_("The notice could not be removed"), str(error))
+                return
+            watch(20)
 
         def on_response(_dialog, response):
-            if response == "ssh":
-                run_async(lambda: core.remove_notice_via_ssh(host), done)
-            elif response == "copy":
+            secret, otp = password.get_text(), code.get_text().strip()
+            password.set_text("")
+            if response == "password":
+                dialog.set_visible(False)
+                self.toast(_("Signing in as root@pam and running the script…"))
+                run_async(lambda: rootshell.remove_notice(host, node, "root@pam", secret, otp), finished)
+            elif response == "ssh":
+                run_async(lambda: core.remove_notice_via_ssh(host), finished)
+            elif response == "manual":
                 self.copy(core.notice_fix_command())
-                self.open_uri(core.node_shell_url(host, node))
+                self.open_uri(core.web_interface(host))
+                self.explain(
+                    _("Paste the command in the node shell"),
+                    _(
+                        "The command is in the clipboard and the web interface is opening. Sign in there, select "
+                        "{node} and open Shell, then paste the command and press Enter. This window notices by "
+                        "itself when the notice is gone."
+                    ).format(node=node or _("the node")),
+                )
+                watch(300)
 
         dialog.connect("response", on_response)
         dialog.present()

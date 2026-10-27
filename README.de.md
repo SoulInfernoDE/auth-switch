@@ -52,14 +52,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.5_all.deb
+sudo apt install ./auth-switch_0.3.6_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.5-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.6-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -115,35 +115,43 @@ kurz aus und wieder ein.
 
 ## Server ohne Abonnement
 
-Nach dem Hinzufügen eines Kontos liest Auth-Switch das Abonnement und die
-Paket-Repositories aller Knoten und zeigt das Ergebnis neben dem Server an:
-*Enterprise-Repository* oder *No-Subscription-Repository*. Hat ein Knoten kein
-aktives Abonnement, nutzt aber noch das Enterprise-Repository, bietet es an,
+Nach dem Hinzufügen eines Kontos – und jederzeit über **Abonnement und
+Repository …** in seinem Menü – zeigt Auth-Switch eine Checkliste für den
+Server:
 
-1. das No-Subscription-Repository einzuschalten – auch für Ceph – und die
-   Enterprise-Repositories abzuschalten. Das läuft über die Proxmox-VE-API und
-   funktioniert daher für die `.list`-Dateien von PVE 8 wie für die
-   `.sources`-Dateien von PVE 9;
-2. den Hinweis „No valid subscription“ der Weboberfläche zu entfernen. Dafür
-   bietet die API keinen Weg, es braucht root auf dem Knoten: per SSH als root
-   mit deinen vorhandenen Schlüsseln oder durch Einfügen eines Befehls in die
-   Node-Shell. Eingerichtet werden `/usr/local/sbin/pve-subscription-notice-hook`
-   und ein APT-Hook in `/etc/apt/apt.conf.d/99-pve-subscription-notice`, der den
-   Hinweis nach jedem Update von `proxmox-widget-toolkit` wieder ausblendet und
-   die Originaldatei als `proxmoxlib.js.auth-switch.orig` aufbewahrt. Löschen
-   beider Dateien macht es rückgängig. Anders als das verbreitete Rezept, das
-   den Dialog auskommentiert, ändert es nur die Abo-Prüfung; die Aktion hinter
-   dem Hinweis – etwa ein Repository hinzufügen – läuft also weiterhin.
+- **Abonnement** jedes Knotens.
+- **Paket-Repositories:** Ohne Abonnement schaltet *Umstellen* über die
+  Proxmox-VE-API die No-Subscription-Repositories ein (auch Ceph) und die
+  Enterprise-Repositories ab – für `.list`-Dateien von PVE 8 wie
+  `.sources`-Dateien von PVE 9.
+- **Hinweis „No valid subscription“:** gelesen aus der Datei, die die
+  Weboberfläche für alle ausliefert, daher zeigt die Checkliste den echten
+  Zustand, auch nach Updates. Sie erkennt auch das verbreitete Rezept, das den
+  Dialog auskommentiert und damit stillschweigend die Aktionen dahinter
+  blockiert, etwa „Repository hinzufügen“.
+
+Entfernen oder Reparieren ändert eine Datei auf dem Knoten und richtet einen
+APT-Hook ein (`/usr/local/sbin/pve-subscription-notice-hook` und
+`/etc/apt/apt.conf.d/99-pve-subscription-notice`), der die Änderung nach jedem
+Update von `proxmox-widget-toolkit` beibehält. Er ändert nur die Abo-Prüfung,
+sodass die Aktionen hinter dem Hinweis weiter funktionieren, und macht den
+auskommentierten Dialog anderer Rezepte rückgängig; die zuletzt geänderte Datei
+bleibt als `proxmoxlib.js.auth-switch.orig` erhalten. Weil das root braucht,
+gibt es drei Wege, und der Dialog zeigt das Skript, bevor etwas läuft:
+
+- **Mit Passwort ausführen:** Passwort von `root@pam` eingeben. Auth-Switch
+  meldet sich einmal an, führt das Skript in der eigenen Root-Konsole des
+  Knotens aus – der hinter Knoten → Shell – über die HTTPS-Verbindung, deren
+  Zertifikat du bestätigt hast, und vergisst Passwort und Sitzung sofort. Bei
+  Zwei-Faktor-Anmeldung fragt es nach dem Einmalcode. SSH ist nicht beteiligt.
+- **Per SSH**, wenn SSH als root mit deinen Schlüsseln und bekanntem Host-Key
+  bereits funktioniert.
+- **Selbst erledigen:** kopiert einen einzeiligen Befehl und öffnet die
+  Weboberfläche; anmelden, Shell des Knotens öffnen und einfügen. Die
+  Checkliste merkt von selbst, wenn der Hinweis weg ist.
 
 Zum Lesen braucht es das Recht `Sys.Audit` auf den Knoten, zum Umstellen der
-Repositories `Sys.Modify`, meist mit einem Token von `root@pam`. **Abonnement
-und Repository …** im Menü eines Kontos führt die Prüfung erneut aus.
-
-Die Suche fragt jede Adresse der privaten Netze, an die dein Rechner direkt
-angeschlossen ist (höchstens 1024 Adressen, größere Netze werden auf dein
-eigenes /24 eingegrenzt), auf Port 8006 nach der Startseite und erkennt die
-Proxmox-VE-Weboberfläche an ihrem Titel. Sie sendet weder Konto noch Geheimnis;
-Container- und VPN-Schnittstellen werden übersprungen.
+Repositories `Sys.Modify`, meist mit einem Token von `root@pam`.
 
 ## Updates und Sprache
 

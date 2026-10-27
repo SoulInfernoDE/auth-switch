@@ -51,14 +51,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.3.5_all.deb
+sudo apt install ./auth-switch_0.3.6_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.5-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.6-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -111,34 +111,41 @@ separation off and on again.
 
 ## Servers without a subscription
 
-After an account is added, Auth-Switch reads the subscription and the package
-repositories of every node and shows the result next to the server:
-*Enterprise Repository* or *No-Subscription Repository*. If a node has no
-active subscription but still uses the enterprise repository, it offers to
+After an account is added – and any time with **Subscription and
+repository…** in its menu – Auth-Switch shows a checklist for the server:
 
-1. enable the no-subscription repository – for Ceph too – and disable the
-   enterprise repositories. This goes through the Proxmox VE API, so it works
-   for the `.list` files of PVE 8 and the `.sources` files of PVE 9 alike;
-2. remove the "No valid subscription" notice of the web interface. The API
-   offers no way to do this, so it needs root on the node: over SSH as root
-   with your existing keys, or by pasting a command into the node shell. It
-   installs `/usr/local/sbin/pve-subscription-notice-hook` and an APT hook in
-   `/etc/apt/apt.conf.d/99-pve-subscription-notice`, which hides the notice
-   again after every update of `proxmox-widget-toolkit` and keeps the original
-   file as `proxmoxlib.js.auth-switch.orig`. Deleting both files undoes it.
-   Unlike the common recipe that comments out the dialog, it only changes the
-   subscription check, so the action the notice stands in front of – such as
-   adding a repository – still runs.
+- **Subscription** of every node.
+- **Package repositories:** without a subscription, *Switch over* enables the
+  no-subscription repositories (Ceph included) and disables the enterprise ones
+  through the Proxmox VE API – for PVE 8 `.list` and PVE 9 `.sources` files
+  alike.
+- **"No valid subscription" notice:** read from the file the web interface
+  serves to everyone, so the checklist shows the real state, also after
+  updates. It also recognises the common recipe that comments out the dialog,
+  which silently stops the actions behind it, such as adding a repository.
 
-Reading needs the right `Sys.Audit` on the nodes and changing the repositories
-`Sys.Modify`, usually with a token of `root@pam`. **Subscription and
-repository…** in an account's menu runs the check again.
+Removing or repairing the notice changes a file on the node and installs an APT
+hook (`/usr/local/sbin/pve-subscription-notice-hook` and
+`/etc/apt/apt.conf.d/99-pve-subscription-notice`) that keeps the change after
+every update of `proxmox-widget-toolkit`. It only changes the subscription
+check, so the actions behind the notice keep working, and it undoes the
+commented-out dialog of other recipes; the file it changed last is kept as
+`proxmoxlib.js.auth-switch.orig`. Because this needs root, there are three ways,
+and the dialog shows the script before anything runs:
 
-The search asks every address of the private networks your computer is
-directly attached to (at most 1024 addresses, larger networks are narrowed to
-your own /24) for the start page on port 8006 and recognises the Proxmox VE web
-interface by its title. It sends no account or secret; container and VPN
-interfaces are skipped.
+- **Run with password:** enter the password of `root@pam`. Auth-Switch signs in
+  once, runs the script in the node's own root console – the one behind Node →
+  Shell – over the HTTPS connection whose certificate you confirmed, and
+  forgets the password and the session right away. With two-factor
+  authentication it asks for the one-time code. No SSH is involved.
+- **Over SSH**, if SSH as root already works with your keys and a known host
+  key.
+- **Do it myself:** copies a one-line command and opens the web interface; sign
+  in, open the node's Shell and paste it. The checklist notices by itself when
+  the notice is gone.
+
+Reading needs the right `Sys.Audit` on the nodes and switching repositories
+`Sys.Modify`, usually with a token of `root@pam`.
 
 ## Updates and language
 
