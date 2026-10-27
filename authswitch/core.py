@@ -264,14 +264,22 @@ class _Connection(http.client.HTTPSConnection):
 
 
 def _encode(params: dict | None) -> str:
+    """Form fields as the Proxmox VE API expects them; a list becomes the same field repeated."""
+
     def value(item: object) -> str:
         if isinstance(item, bool):
             return "1" if item else "0"
-        if isinstance(item, (dict, list)):
+        if isinstance(item, dict):
             return json.dumps(item)
         return str(item)
 
-    return urllib.parse.urlencode({key: value(item) for key, item in (params or {}).items() if item is not None})
+    fields = []
+    for key, item in (params or {}).items():
+        if item is None:
+            continue
+        for element in item if isinstance(item, (list, tuple)) else [item]:
+            fields.append((key, value(element)))
+    return urllib.parse.urlencode(fields)
 
 
 def _check_path(path: str, method: str = "GET") -> None:

@@ -384,6 +384,11 @@ class InputTest(unittest.TestCase):
 
     def test_form_encoding(self):
         self.assertEqual(core._encode({"onboot": True, "memory": 2048, "skip": None}), "onboot=1&memory=2048")
+        # e.g. the "command" of /agent/exec, which the API expects as a repeated field
+        self.assertEqual(
+            core._encode({"command": ["cmd.exe", "/c", "ver"], "input-data": "x"}),
+            "command=cmd.exe&command=%2Fc&command=ver&input-data=x",
+        )
 
 
 class NoticeTest(unittest.TestCase):
