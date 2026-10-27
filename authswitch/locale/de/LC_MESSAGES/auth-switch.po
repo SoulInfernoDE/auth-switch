@@ -81,7 +81,7 @@ msgid "The secret could not be stored in the system keyring."
 msgstr "Das Geheimnis konnte nicht im System-Schlüsselbund gespeichert werden."
 
 #: authswitch/core.py:217 authswitch/core.py:231 authswitch/core.py:320
-#: authswitch/core.py:775 authswitch/rootshell.py:44
+#: authswitch/core.py:776 authswitch/rootshell.py:48
 #, python-brace-format
 msgid "{host} cannot be reached: {detail}"
 msgstr "{host} ist nicht erreichbar: {detail}"
@@ -266,26 +266,26 @@ msgstr "Für dieses Konto in Auth-Switch gesperrt: {path}"
 msgid "No node of {host} could be read."
 msgstr "Kein Knoten von {host} konnte gelesen werden."
 
-#: authswitch/core.py:830 authswitch/sshaccess.py:153
+#: authswitch/core.py:831 authswitch/sshaccess.py:153
 msgid "ssh is not installed."
 msgstr "ssh ist nicht installiert."
 
-#: authswitch/core.py:838
+#: authswitch/core.py:839
 #, python-brace-format
 msgid "SSH to {host} timed out."
 msgstr "SSH zu {host} hat zu lange gedauert."
 
-#: authswitch/core.py:841
+#: authswitch/core.py:842
 #, python-brace-format
 msgid "SSH as root@{host} failed: {detail}"
 msgstr "SSH als root@{host} fehlgeschlagen: {detail}"
 
-#: authswitch/core.py:878
+#: authswitch/core.py:879
 #, python-brace-format
 msgid "Task on {node} failed: {status}"
 msgstr "Task auf {node} fehlgeschlagen: {status}"
 
-#: authswitch/core.py:881
+#: authswitch/core.py:882
 #, python-brace-format
 msgid "Task on {node} did not finish in time."
 msgstr "Task auf {node} wurde nicht rechtzeitig fertig."
@@ -1366,37 +1366,37 @@ msgstr "Methode nicht gefunden: {method}"
 msgid "Parse error"
 msgstr "Syntaxfehler"
 
-#: authswitch/rootshell.py:48
+#: authswitch/rootshell.py:52
 msgid "The server rejected the user name or password."
 msgstr "Der Server hat Benutzername oder Passwort abgelehnt."
 
-#: authswitch/rootshell.py:59
+#: authswitch/rootshell.py:63
 msgid "This account uses two-factor authentication; enter the one-time code."
 msgstr ""
 "Dieses Konto nutzt Zwei-Faktor-Anmeldung; bitte den Einmalcode eingeben."
 
-#: authswitch/rootshell.py:62
+#: authswitch/rootshell.py:66
 msgid "The server did not issue a session."
 msgstr "Der Server hat keine Sitzung ausgestellt."
 
-#: authswitch/rootshell.py:87
+#: authswitch/rootshell.py:91 authswitch/rootshell.py:150
 msgid "The console closed the connection."
 msgstr "Die Konsole hat die Verbindung geschlossen."
 
-#: authswitch/rootshell.py:123
+#: authswitch/rootshell.py:127
 #, python-brace-format
 msgid "The console could not be opened: {detail}"
 msgstr "Die Konsole konnte nicht geöffnet werden: {detail}"
 
-#: authswitch/rootshell.py:136
+#: authswitch/rootshell.py:140
 msgid "The console refused the session."
 msgstr "Die Konsole hat die Sitzung abgelehnt."
 
-#: authswitch/rootshell.py:156
+#: authswitch/rootshell.py:160
 msgid "The console did not finish in time."
 msgstr "Die Konsole wurde nicht rechtzeitig fertig."
 
-#: authswitch/rootshell.py:176 authswitch/sshaccess.py:161
+#: authswitch/rootshell.py:190 authswitch/sshaccess.py:161
 #, python-brace-format
 msgid "The fix failed on {node}: {detail}"
 msgstr "Die Korrektur ist auf {node} fehlgeschlagen: {detail}"

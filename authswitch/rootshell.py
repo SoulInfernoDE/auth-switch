@@ -29,6 +29,10 @@ class TwoFactorRequired(core.AuthError):
     """The account uses two-factor authentication; call again with the one-time code."""
 
 
+class ConsoleClosed(core.AuthError):
+    """The console went away before the script reported its exit status."""
+
+
 def _post(host: str, path: str, params: dict, cookie: str = "", csrf: str = "") -> object:
     connection = core._Connection(host, core.pinned_fingerprint(host))
     headers = {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"}
@@ -84,7 +88,7 @@ def _read_exact(sock, count: int) -> bytes:
     while len(data) < count:
         chunk = sock.recv(count - len(data))
         if not chunk:
-            raise core.AuthError(_("The console closed the connection."))
+            raise ConsoleClosed(_("The console closed the connection."))
         data += chunk
     return data
 
@@ -143,7 +147,7 @@ def run_script(host: str, node: str, session: dict, script: str, timeout: float 
         while time.monotonic() < deadline:
             opcode, payload = _read_frame(sock)
             if opcode == 0x8:
-                break
+                raise ConsoleClosed(_("The console closed the connection."))
             if opcode == 0x9:
                 sock.sendall(_frame(payload, 0xA))
                 continue
@@ -169,6 +173,16 @@ def remove_notice(host: str, node: str, user: str, password: str, code: str = ""
     session = sign_in(host, user, password, code)
     try:
         status, output = run_script(host, node, session, core.NOTICE_FIX_SCRIPT, timeout=300)
+    except ConsoleClosed:
+        # Older hooks restart pveproxy at once, which also ends this console; the served file tells the truth.
+        for _attempt in range(6):
+            time.sleep(3)
+            try:
+                if core.notice_status(host) == core.NOTICE_REMOVED:
+                    return ""
+            except core.AuthError:
+                continue
+        raise
     finally:
         session.clear()
     if status != 0:

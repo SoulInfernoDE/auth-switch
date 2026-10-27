@@ -751,7 +751,8 @@ if grep -Ezq "!res \|\|\s*res\s*\.data\.status\.toLowerCase\(\) !== 'active'" "$
     sed -Ezi "s/(!res \|\|\s*)res\s*\.data\.status\.toLowerCase\(\) !== 'active'/\1false/" "$f"
 fi
 [ -n "$saved" ] || exit 0
-systemctl restart pveproxy.service || true
+# Restart a moment later: the console that may be running this is served by pveproxy and should report back first.
+systemd-run --quiet --on-active=3 /bin/systemctl restart pveproxy.service 2>/dev/null || systemctl restart pveproxy.service || true
 exit 0
 HOOK
 chmod 0755 /usr/local/sbin/pve-subscription-notice-hook

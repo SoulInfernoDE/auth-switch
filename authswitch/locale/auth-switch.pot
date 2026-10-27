@@ -82,7 +82,7 @@ msgid "The secret could not be stored in the system keyring."
 msgstr ""
 
 #: authswitch/core.py:217 authswitch/core.py:231 authswitch/core.py:320
-#: authswitch/core.py:775 authswitch/rootshell.py:44
+#: authswitch/core.py:776 authswitch/rootshell.py:48
 #, python-brace-format
 msgid "{host} cannot be reached: {detail}"
 msgstr ""
@@ -246,26 +246,26 @@ msgstr ""
 msgid "No node of {host} could be read."
 msgstr ""
 
-#: authswitch/core.py:830 authswitch/sshaccess.py:153
+#: authswitch/core.py:831 authswitch/sshaccess.py:153
 msgid "ssh is not installed."
 msgstr ""
 
-#: authswitch/core.py:838
+#: authswitch/core.py:839
 #, python-brace-format
 msgid "SSH to {host} timed out."
 msgstr ""
 
-#: authswitch/core.py:841
+#: authswitch/core.py:842
 #, python-brace-format
 msgid "SSH as root@{host} failed: {detail}"
 msgstr ""
 
-#: authswitch/core.py:878
+#: authswitch/core.py:879
 #, python-brace-format
 msgid "Task on {node} failed: {status}"
 msgstr ""
 
-#: authswitch/core.py:881
+#: authswitch/core.py:882
 #, python-brace-format
 msgid "Task on {node} did not finish in time."
 msgstr ""
@@ -1245,36 +1245,36 @@ msgstr ""
 msgid "Parse error"
 msgstr ""
 
-#: authswitch/rootshell.py:48
+#: authswitch/rootshell.py:52
 msgid "The server rejected the user name or password."
 msgstr ""
 
-#: authswitch/rootshell.py:59
+#: authswitch/rootshell.py:63
 msgid "This account uses two-factor authentication; enter the one-time code."
 msgstr ""
 
-#: authswitch/rootshell.py:62
+#: authswitch/rootshell.py:66
 msgid "The server did not issue a session."
 msgstr ""
 
-#: authswitch/rootshell.py:87
+#: authswitch/rootshell.py:91 authswitch/rootshell.py:150
 msgid "The console closed the connection."
 msgstr ""
 
-#: authswitch/rootshell.py:123
+#: authswitch/rootshell.py:127
 #, python-brace-format
 msgid "The console could not be opened: {detail}"
 msgstr ""
 
-#: authswitch/rootshell.py:136
+#: authswitch/rootshell.py:140
 msgid "The console refused the session."
 msgstr ""
 
-#: authswitch/rootshell.py:156
+#: authswitch/rootshell.py:160
 msgid "The console did not finish in time."
 msgstr ""
 
-#: authswitch/rootshell.py:176 authswitch/sshaccess.py:161
+#: authswitch/rootshell.py:190 authswitch/sshaccess.py:161
 #, python-brace-format
 msgid "The fix failed on {node}: {detail}"
 msgstr ""

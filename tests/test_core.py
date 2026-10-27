@@ -177,6 +177,7 @@ class AccountTest(unittest.TestCase):
         self.assertIn("99-pve-subscription-notice", core.NOTICE_FIX_SCRIPT)
         self.assertIn(r"/\1false/", core.NOTICE_FIX_SCRIPT)
         self.assertIn(r"(void\(\{ \/\/)+(Ext\.Msg\.show)/\2/g", core.NOTICE_FIX_SCRIPT)
+        self.assertIn("systemd-run --quiet --on-active=3", core.NOTICE_FIX_SCRIPT)
 
     def test_web_language(self):
         manager = core.find_account(TOKEN)
@@ -421,6 +422,21 @@ class RootShellTest(unittest.TestCase):
         import base64
         self.assertEqual(base64.b64decode(encoded), b"echo hi\n")
         self.assertEqual(sock.sent[-1], b"0:5:exit\n")
+
+    def test_closed_console_counts_as_done_when_the_notice_is_gone(self):
+        session = {"ticket": "T", "csrf": "C"}
+        with mock.patch.object(rootshell, "sign_in", return_value=session), \
+                mock.patch.object(rootshell, "run_script", side_effect=rootshell.ConsoleClosed("closed")), \
+                mock.patch.object(rootshell.time, "sleep"), \
+                mock.patch.object(core, "notice_status", side_effect=[core.NOTICE_BROKEN, core.NOTICE_REMOVED]):
+            self.assertEqual(rootshell.remove_notice("h:8006", "pve", "root@pam", "pw"), "")
+        self.assertEqual(session, {})
+        with mock.patch.object(rootshell, "sign_in", return_value={}), \
+                mock.patch.object(rootshell, "run_script", side_effect=rootshell.ConsoleClosed("closed")), \
+                mock.patch.object(rootshell.time, "sleep"), \
+                mock.patch.object(core, "notice_status", return_value=core.NOTICE_SHOWN):
+            with self.assertRaises(rootshell.ConsoleClosed):
+                rootshell.remove_notice("h:8006", "pve", "root@pam", "pw")
 
     def test_frames_are_masked_and_readable(self):
         frame = rootshell._frame(b"x" * 300)
