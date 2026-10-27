@@ -197,15 +197,8 @@ class Window(Adw.ApplicationWindow):
 
     def build_host_group(self, host: str) -> Adw.PreferencesGroup:
         pinned = core.pinned_fingerprint(host)
-        parts = [_("Certificate confirmed by you") if pinned else _("Certificate trusted by the system")]
-        repository = {
-            core.ENTERPRISE: _("Enterprise Repository"),
-            core.NO_SUBSCRIPTION: _("No-Subscription Repository"),
-            core.NEEDS_SETUP: _("No subscription – repository not set up"),
-        }.get(core.stored_repository(host))
-        if repository:
-            parts.insert(0, repository)
-        group = Adw.PreferencesGroup(title=host, description=" · ".join(parts))
+        description = _("Certificate confirmed by you") if pinned else _("Certificate trusted by the system")
+        group = Adw.PreferencesGroup(title=host, description=description)
         button = Gtk.Button(icon_name="web-browser-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Open web interface"))
         button.add_css_class("flat")
         button.connect("clicked", lambda *_args: self.open_uri(core.web_interface(host)))
@@ -279,6 +272,13 @@ class Window(Adw.ApplicationWindow):
             row.set_subtitle(_("Server not reachable"))
             return
         parts = [_("Proxmox VE {version}").format(version=profile.version)] if profile.version else []
+        repository = {
+            core.ENTERPRISE: _("Enterprise Repository"),
+            core.NO_SUBSCRIPTION: _("No-Subscription Repository"),
+            core.NEEDS_SETUP: _("No subscription – repository not set up"),
+        }.get(core.stored_repository(account.host))
+        if repository:
+            parts.append(repository)
         if profile.has_rights is False:
             parts.append(_("No rights – check privilege separation"))
         if account.active:
