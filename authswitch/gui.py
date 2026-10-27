@@ -6,6 +6,7 @@ import re
 import shutil
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import gi
@@ -118,6 +119,16 @@ class Window(Adw.ApplicationWindow):
         dialog.present()
         if self.settings["sounds"]:
             sound.play("error")
+
+    def busy(self, text: str):
+        """Show a spinner while something loads; returns the function that hides it again."""
+        box = Gtk.Box(spacing=10)
+        spinner = Gtk.Spinner(spinning=True)
+        box.append(spinner)
+        box.append(Gtk.Label(label=text))
+        toast = Adw.Toast(custom_title=box, timeout=0)
+        self.toasts.add_toast(toast)
+        return toast.dismiss
 
     def copy(self, text: str) -> None:
         self.get_clipboard().set(text)
@@ -440,7 +451,10 @@ class Window(Adw.ApplicationWindow):
         # A token rarely may change its own rights, so prefer another account of the server.
         managers = core.managers_for(host, token_id)
 
+        done_loading = self.busy(_("Reading permissions…"))
+
         def loaded(result, error, manager):
+            done_loading()
             if error:
                 others = [a for a in managers if a != manager]
                 text = str(error)
@@ -660,15 +674,25 @@ class Window(Adw.ApplicationWindow):
         """Checklist of subscription, repositories and notice, each with the one action it may need."""
         manager = core.managers_for(host, token_id)[0]
 
-        def gather():
-            server = core.inspect_server(host, manager)
+        def notice():
             try:
-                notice = core.notice_status(host)
+                return core.notice_status(host)
             except core.AuthError:
-                notice = core.NOTICE_UNKNOWN
-            return server, notice, core.ssh_ready(host), rootshell.local_node(host, manager)
+                return core.NOTICE_UNKNOWN
+
+        def gather():
+            # The checks are independent, so they run side by side.
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                jobs = [pool.submit(job) for job in (
+                    lambda: core.inspect_server(host, manager), notice,
+                    lambda: core.ssh_ready(host), lambda: rootshell.local_node(host, manager),
+                )]
+                return tuple(job.result() for job in jobs)
+
+        done_loading = self.busy(_("Checking subscription and repositories…"))
 
         def loaded(result, error):
+            done_loading()
             if error:
                 if not only_if_needed:
                     self.explain(_("Subscription could not be checked"), str(error))
@@ -886,7 +910,13 @@ class Window(Adw.ApplicationWindow):
             self.show_ssh_switch(host, state)
             return
         manager = core.managers_for(host, token_id)[0]
-        run_async(lambda: rootshell.local_node(host, manager), lambda node, error: self.ask_ssh_setup(host, node or ""))
+        done_loading = self.busy(_("Reading the server…"))
+
+        def loaded(node, _error):
+            done_loading()
+            self.ask_ssh_setup(host, node or "")
+
+        run_async(lambda: rootshell.local_node(host, manager), loaded)
 
     def ask_ssh_setup(self, host: str, node: str) -> None:
         alias = Adw.EntryRow(title=_("Name for ssh, e.g. ssh {name}").format(name=node or "pve"), text=node or "pve")
@@ -1001,7 +1031,10 @@ class Window(Adw.ApplicationWindow):
     def open_maintenance(self, host: str, token_id: str) -> None:
         manager = core.managers_for(host, token_id)[0]
 
+        done_loading = self.busy(_("Reading versions and updates…"))
+
         def loaded(result, error):
+            done_loading()
             if error:
                 self.explain(_("Server could not be read"), str(error) + "\n\n" + _(
                     "This needs Sys.Audit, and Sys.Modify for changes, for example with a token of root@pam."
