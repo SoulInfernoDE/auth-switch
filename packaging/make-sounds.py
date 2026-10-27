@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Synthesize the sound effects in authswitch/sounds (soft, mallet-like chimes)."""
 
 import math

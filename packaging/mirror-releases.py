@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Copy the GitHub releases, with notes and assets, to a Forgejo mirror.
 
 A Forgejo pull mirror follows branches and tags but not releases. This script

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Fill untranslated entries of a .po file from a JSON object {msgid: msgstr}.
 
 Usage: fill-translations.py <catalog.po> <translations.json>
