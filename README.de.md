@@ -34,6 +34,8 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
   Enterprise- oder das No-Subscription-Repository nutzt; ohne Abonnement kann
   es die Repositories umstellen und den Hinweis „No valid subscription“
   dauerhaft entfernen
+- Zeigt ausstehende Updates pro Knoten, upgradet einen Knoten und stellt die
+  Standardsprache der Weboberfläche ein
 - Startet andere Werkzeuge mit dem aktiven Konto: `auth-switch exec -- terraform plan`
 - MCP-Server mit Lese- und Schreibzugriff auf die Proxmox-VE-API
 - Leak-Prüfung: findet Token-Geheimnisse, Serveradressen, deine echte
@@ -50,14 +52,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.2_all.deb
+sudo apt install ./auth-switch_0.3.3_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.2-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.3-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -127,6 +129,24 @@ angeschlossen ist (höchstens 1024 Adressen, größere Netze werden auf dein
 eigenes /24 eingegrenzt), auf Port 8006 nach der Startseite und erkennt die
 Proxmox-VE-Weboberfläche an ihrem Titel. Sie sendet weder Konto noch Geheimnis;
 Container- und VPN-Schnittstellen werden übersprungen.
+
+## Updates und Sprache
+
+**Updates und Sprache …** im Menü eines Kontos zeigt Proxmox-VE-Version und
+ausstehende Updates jedes Knotens und stellt die Standardsprache der
+Weboberfläche für den ganzen Cluster ein – oder überlässt sie dem Browser.
+
+**Upgraden** installiert alle ausstehenden Updates eines Knotens mit
+`apt dist-upgrade`, wie der Upgrade-Knopf der Weboberfläche: entweder in dessen
+eigener Upgrade-Konsole im Browser, in der du jeden Schritt siehst, oder
+unbeaufsichtigt per SSH als root mit deinen vorhandenen Schlüsseln. Danach
+meldet Auth-Switch, ob ein neuer Kernel einen Neustart braucht. Es bleibt
+innerhalb der installierten Hauptversion; für die nächste verlinkt der Dialog
+die offizielle Upgrade-Anleitung, weil ein Hauptversions-Upgrade Vorbereitung
+braucht, die nicht unbeaufsichtigt laufen sollte.
+
+Zum Lesen braucht es `Sys.Audit`, zum Ändern der Sprache und für die
+Update-Suche `Sys.Modify`, meist mit einem Token von `root@pam`.
 
 ## So werden Geheimnisse geschützt
 

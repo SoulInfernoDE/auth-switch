@@ -33,6 +33,8 @@ Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch)
   server uses the enterprise or the no-subscription repository; without a
   subscription it can switch the repositories and remove the "No valid
   subscription" notice for good
+- Shows pending updates per node, upgrades a node and sets the default language
+  of the web interface
 - Runs other tools with the active account: `auth-switch exec -- terraform plan`
 - MCP server with read and write access to the Proxmox VE API
 - Leak check: finds token secrets, server addresses, your real e-mail address
@@ -49,14 +51,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.3.2_all.deb
+sudo apt install ./auth-switch_0.3.3_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.2-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.3-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -123,6 +125,23 @@ directly attached to (at most 1024 addresses, larger networks are narrowed to
 your own /24) for the start page on port 8006 and recognises the Proxmox VE web
 interface by its title. It sends no account or secret; container and VPN
 interfaces are skipped.
+
+## Updates and language
+
+**Updates and language…** in an account's menu shows the Proxmox VE version and
+the pending updates of every node and sets the default language of the web
+interface for the whole cluster – or leaves it to the browser.
+
+**Upgrade** installs all pending updates of a node with `apt dist-upgrade`, the
+same as the Upgrade button of the web interface: either in that button's own
+upgrade console in the browser, where you see every step, or unattended over
+SSH as root with your existing keys. Afterwards Auth-Switch tells you if a new
+kernel needs a reboot. It stays within the installed major version; for the
+next one the dialog links the official upgrade guide, because a major upgrade
+needs preparation that should not run unattended.
+
+Reading needs `Sys.Audit`, changing the language and checking for updates
+`Sys.Modify`, usually with a token of `root@pam`.
 
 ## How secrets are protected
 

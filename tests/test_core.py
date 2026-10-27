@@ -178,6 +178,47 @@ class AccountTest(unittest.TestCase):
         self.assertIn(r"/\1false/", core.NOTICE_FIX_SCRIPT)
         self.assertNotIn("void(", core.NOTICE_FIX_SCRIPT)
 
+    def test_web_language(self):
+        manager = core.find_account(TOKEN)
+        with mock.patch.object(core, "request", return_value={"language": "de", "keyboard": "de"}):
+            self.assertEqual(core.get_web_language(manager.host, manager), "de")
+        with mock.patch.object(core, "request") as request:
+            core.set_web_language(manager.host, "fr", manager)
+            core.set_web_language(manager.host, "", manager)
+        self.assertEqual([c.args[3:6] for c in request.call_args_list], [
+            ("PUT", "/cluster/options", {"language": "fr"}),
+            ("PUT", "/cluster/options", {"delete": "language"}),
+        ])
+        self.assertIn("de", [code for code, _name in core.WEB_LANGUAGES])
+
+    def test_node_updates(self):
+        manager = core.find_account(TOKEN)
+        upid = "UPID:pve:0000:0000:0000:aptupdate::root@pam!automation:"
+        answers = {
+            ("GET", "/cluster/status"): [{"type": "cluster"}, {"type": "node", "name": "pve", "local": 1}],
+            ("GET", "/nodes"): [{"node": "pve", "status": "online"}, {"node": "pve2", "status": "offline"}],
+            ("POST", "/nodes/pve/apt/update"): upid,
+            ("GET", "/nodes/pve/status"): {"pveversion": "pve-manager/8.2.4/faa83925c9641325"},
+            ("GET", "/nodes/pve/apt/update"): [{"Package": "pve-manager"}, {"Package": "libc6"}],
+        }
+
+        def fake(host, token, secret, method, path, params=None, fingerprint=None):
+            if "/tasks/" in path:
+                return {"status": "stopped", "exitstatus": "OK"}
+            return answers[(method, path)]
+
+        with mock.patch.object(core, "request", side_effect=fake):
+            nodes = core.node_updates(manager.host, manager, refresh=True)
+        self.assertEqual(nodes, [{"node": "pve", "version": "8.2.4", "updates": 2, "packages": ["libc6", "pve-manager"], "local": True}])
+        self.assertEqual(core.major_upgrade_guide("8.2.4"), "https://pve.proxmox.com/wiki/Upgrade_from_8_to_9")
+        self.assertIn("console=upgrade", core.upgrade_console_url(manager.host, "pve"))
+
+    def test_upgrade_over_ssh_reports_a_needed_reboot(self):
+        output = "Reading package lists...\npve-manager/8.4.1/2a5fa54a8503f96d (running kernel: 6.8.12-9-pve)\nAUTH-SWITCH-REBOOT\n"
+        with mock.patch.object(core, "run_as_root", return_value=output) as run:
+            self.assertEqual(core.upgrade_via_ssh("pve.example.com:8006"), {"reboot": True, "version": "pve-manager/8.4.1/2a5fa54a8503f96d (running kernel: 6.8.12-9-pve)"})
+        self.assertIn("dist-upgrade", run.call_args.args[1])
+
     def test_mcp_tools(self):
         names = [tool["name"] for tool in mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]]
         self.assertEqual(

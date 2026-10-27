@@ -643,14 +643,18 @@ def node_shell_url(host: str, node: str) -> str:
 
 
 def remove_notice_via_ssh(host: str) -> str:
-    """Run the fix as root over SSH with the user's own keys; never asks for or stores a password."""
+    return run_as_root(host, NOTICE_FIX_SCRIPT, 180)
+
+
+def run_as_root(host: str, script: str, timeout: int) -> str:
+    """Run ``script`` as root over SSH with the user's own keys; never asks for or stores a password."""
     if not shutil.which("ssh"):
         raise AuthError(_("ssh is not installed."))
     name = split_host(host)[0]
     try:
         proc = subprocess.run(
             ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", f"root@{name}", "sh", "-s"],
-            input=NOTICE_FIX_SCRIPT, capture_output=True, text=True, timeout=180,
+            input=script, capture_output=True, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         raise AuthError(_("SSH to {host} timed out.").format(host=name)) from None
@@ -658,6 +662,108 @@ def remove_notice_via_ssh(host: str) -> str:
         detail = (proc.stderr or proc.stdout).strip().splitlines()[-1:] or [""]
         raise AuthError(_("SSH as root@{host} failed: {detail}").format(host=name, detail=detail[0]))
     return proc.stdout.strip()
+
+
+# --- server maintenance ------------------------------------------------------
+
+# Codes the API accepts for the default language of the web interface, with the name of each language in itself.
+WEB_LANGUAGES = [
+    ("ar", "العربية"), ("ca", "Català"), ("da", "Dansk"), ("de", "Deutsch"), ("en", "English"),
+    ("es", "Español"), ("eu", "Euskara"), ("fa", "فارسی"), ("fr", "Français"), ("he", "עברית"),
+    ("hr", "Hrvatski"), ("it", "Italiano"), ("ja", "日本語"), ("ka", "ქართული"), ("kr", "한국어"),
+    ("nb", "Norsk bokmål"), ("nl", "Nederlands"), ("nn", "Norsk nynorsk"), ("pl", "Polski"),
+    ("pt_BR", "Português (Brasil)"), ("ru", "Русский"), ("sl", "Slovenščina"), ("sv", "Svenska"),
+    ("tr", "Türkçe"), ("ukr", "Українська"), ("zh_CN", "简体中文"), ("zh_TW", "繁體中文"),
+]
+
+
+def get_web_language(host: str, manager: Account) -> str:
+    """Default language of the web interface ("" means: follow the browser)."""
+    options = request(host, manager.token_id, _active_secret(manager), "GET", "/cluster/options") or {}
+    return str(options.get("language") or "")
+
+
+def set_web_language(host: str, language: str, manager: Account) -> None:
+    params = {"language": language} if language else {"delete": "language"}
+    request(host, manager.token_id, _active_secret(manager), "PUT", "/cluster/options", params)
+
+
+def wait_for_task(host: str, node: str, upid: str, manager: Account, timeout: float = 300) -> None:
+    import time
+
+    secret, deadline = _active_secret(manager), time.monotonic() + timeout
+    path = f"/nodes/{node}/tasks/{urllib.parse.quote(upid, safe='')}/status"
+    while time.monotonic() < deadline:
+        status = request(host, manager.token_id, secret, "GET", path) or {}
+        if status.get("status") == "stopped":
+            if status.get("exitstatus") not in ("OK", None):
+                raise AuthError(_("Task on {node} failed: {status}").format(node=node, status=status.get("exitstatus")))
+            return
+        time.sleep(2)
+    raise AuthError(_("Task on {node} did not finish in time.").format(node=node))
+
+
+def node_updates(host: str, manager: Account, refresh: bool = False) -> list[dict]:
+    """Version and pending package updates of every online node; ``refresh`` runs apt update first."""
+    secret = _active_secret(manager)
+    local = {
+        entry.get("name")
+        for entry in request(host, manager.token_id, secret, "GET", "/cluster/status") or []
+        if entry.get("type") == "node" and entry.get("local")
+    }
+    result = []
+    for node in request(host, manager.token_id, secret, "GET", "/nodes") or []:
+        name = node.get("node")
+        if not name or node.get("status") not in (None, "online"):
+            continue
+        if refresh:
+            upid = request(host, manager.token_id, secret, "POST", f"/nodes/{name}/apt/update")
+            if isinstance(upid, str) and upid:
+                wait_for_task(host, name, upid, manager)
+        status = request(host, manager.token_id, secret, "GET", f"/nodes/{name}/status") or {}
+        updates = request(host, manager.token_id, secret, "GET", f"/nodes/{name}/apt/update") or []
+        version = str(status.get("pveversion") or "").split("/")
+        result.append({
+            "node": name,
+            "version": version[1] if len(version) > 1 else "",
+            "updates": len(updates),
+            "packages": sorted(str(update.get("Package", "")) for update in updates),
+            "local": name in local,
+        })
+    return sorted(result, key=lambda entry: entry["node"])
+
+
+UPGRADE_SCRIPT = r"""set -e
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold dist-upgrade
+pveversion
+latest=$(ls /boot/vmlinuz-* 2>/dev/null | sed 's#.*/vmlinuz-##' | sort -V | tail -n 1)
+if [ -n "$latest" ] && [ "$latest" != "$(uname -r)" ]; then echo AUTH-SWITCH-REBOOT; fi
+"""
+
+
+def upgrade_via_ssh(host: str) -> dict:
+    """Install all updates of the node behind ``host`` like the web interface's Upgrade button does."""
+    output = run_as_root(host, UPGRADE_SCRIPT, 3600)
+    lines = [line for line in output.splitlines() if line.strip()]
+    return {
+        "reboot": "AUTH-SWITCH-REBOOT" in lines,
+        "version": next((line for line in reversed(lines) if line.startswith("pve-manager/")), ""),
+    }
+
+
+def upgrade_console_url(host: str, node: str) -> str:
+    """The web interface's own upgrade console, which runs apt in a root terminal after the user logs in."""
+    return f"https://{host}/?console=upgrade&xtermjs=1&vmid=0&vmname=&node={urllib.parse.quote(node)}&cmd="
+
+
+def major_upgrade_guide(version: str) -> str:
+    try:
+        major = int(version.split(".", 1)[0])
+    except ValueError:
+        return ""
+    return f"https://pve.proxmox.com/wiki/Upgrade_from_{major}_to_{major + 1}"
 
 
 def describe_accounts(check: bool = True) -> list[dict]:

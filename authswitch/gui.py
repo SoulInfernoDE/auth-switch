@@ -76,6 +76,7 @@ class Window(Adw.ApplicationWindow):
             ("again", lambda _a, p: self.ask_account(*p.unpack()), "(ss)"),
             ("permissions", lambda _a, p: self.edit_permissions(*p.unpack()), "(ss)"),
             ("repository", lambda _a, p: self.check_subscription(*p.unpack()), "(ss)"),
+            ("maintenance", lambda _a, p: self.open_maintenance(*p.unpack()), "(ss)"),
             ("remove", self.on_remove_action, "(ss)"),
         ):
             action = Gio.SimpleAction.new(name, GLib.VariantType.new(parameter))
@@ -208,6 +209,7 @@ class Window(Adw.ApplicationWindow):
         for label, action, value in (
             (_("Permissions…"), "win.permissions", target),
             (_("Subscription and repository…"), "win.repository", target),
+            (_("Updates and language…"), "win.maintenance", target),
             (_("Open web interface"), "win.web", GLib.Variant("s", account.host)),
             (_("Enter secret again"), "win.again", target),
             (_("Remove"), "win.remove", target),
@@ -685,6 +687,133 @@ class Window(Adw.ApplicationWindow):
             elif response == "copy":
                 self.copy(core.notice_fix_command())
                 self.open_uri(core.node_shell_url(host, node))
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    # --- updates and language -----------------------------------------------
+
+    def open_maintenance(self, host: str, token_id: str) -> None:
+        manager = core.managers_for(host, token_id)[0]
+
+        def loaded(result, error):
+            if error:
+                self.explain(_("Server could not be read"), str(error) + "\n\n" + _(
+                    "This needs Sys.Audit, and Sys.Modify for changes, for example with a token of root@pam."
+                ))
+                return
+            self.show_maintenance(host, manager, *result)
+
+        run_async(lambda: (core.get_web_language(host, manager), core.node_updates(host, manager)), loaded)
+
+    def show_maintenance(self, host: str, manager: core.Account, language: str, nodes: list[dict]) -> None:
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.set_size_request(440, -1)
+
+        codes = [""] + [code for code, _name in core.WEB_LANGUAGES]
+        names = [_("Browser default")] + [name for _code, name in core.WEB_LANGUAGES]
+        chooser = Adw.ComboRow(
+            title=_("Language of the web interface"),
+            subtitle=_("Default for everyone who has not chosen a language at login"),
+            model=Gtk.StringList.new(names),
+            selected=codes.index(language) if language in codes else 0,
+        )
+        rows.append(chooser)
+
+        def language_set(_result, error):
+            if error:
+                self.explain(_("Language could not be changed"), str(error))
+            else:
+                self.toast(_("Language of the web interface: {language}").format(language=names[chooser.get_selected()]))
+
+        chooser.connect(
+            "notify::selected",
+            lambda *_a: run_async(lambda: core.set_web_language(host, codes[chooser.get_selected()], manager), language_set),
+        )
+
+        node_rows = []
+        for node in nodes:
+            row = Adw.ActionRow(title=node["node"], use_markup=False)
+            button = Gtk.Button(label=_("Upgrade"), valign=Gtk.Align.CENTER)
+            button.connect("clicked", lambda _b, n=node: self.confirm_upgrade(host, manager, n))
+            row.add_suffix(button)
+            rows.append(row)
+            node_rows.append((row, button))
+
+        def show_nodes(current):
+            for (row, button), node in zip(node_rows, current):
+                count = node["updates"]
+                state = _("up to date") if not count else _("{count} updates available").format(count=count)
+                row.set_subtitle(_("Proxmox VE {version}").format(version=node["version"]) + " · " + state)
+                row.set_tooltip_text(", ".join(node["packages"][:30]))
+                button.set_sensitive(bool(count))
+
+        show_nodes(nodes)
+        refresh = Adw.ActionRow(title=_("Check for updates"), subtitle=_("Runs apt update on every node"))
+        refresh_button = Gtk.Button(icon_name="view-refresh-symbolic", valign=Gtk.Align.CENTER)
+        refresh_button.add_css_class("flat")
+        refresh.add_suffix(refresh_button)
+        rows.append(refresh)
+
+        def refreshed(result, error):
+            refresh_button.set_sensitive(True)
+            if error:
+                self.explain(_("Updates could not be checked"), str(error))
+            elif result:
+                show_nodes(result)
+
+        def run_refresh(*_args):
+            refresh_button.set_sensitive(False)
+            run_async(lambda: core.node_updates(host, manager, refresh=True), refreshed)
+
+        refresh_button.connect("clicked", run_refresh)
+
+        guide = core.major_upgrade_guide(nodes[0]["version"]) if nodes else ""
+        body = _(
+            "Upgrade installs all pending updates of a node, the same as the Upgrade button of the web interface. It "
+            "stays within the installed major version; moving to the next one needs the official upgrade guide."
+        )
+        dialog = Adw.MessageDialog(transient_for=self, heading=_("Updates and language"), body=body, extra_child=rows)
+        dialog.add_response("close", _("Close"))
+        if guide:
+            dialog.add_response("guide", _("Major upgrade guide"))
+
+        def on_response(_dialog, response):
+            if response == "guide":
+                self.open_uri(guide)
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    def confirm_upgrade(self, host: str, manager: core.Account, node: dict) -> None:
+        body = _(
+            "Installs {count} updates on {node} with apt dist-upgrade. Running guests keep running; a new kernel only "
+            "takes effect after a reboot. The upgrade console of the web interface shows every step, SSH runs it "
+            "unattended as root with your existing keys."
+        ).format(count=node["updates"], node=node["node"])
+        dialog = Adw.MessageDialog(transient_for=self, heading=_("Upgrade {node}?").format(node=node["node"]), body=body)
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("console", _("Open upgrade console"))
+        if node["local"] and shutil.which("ssh"):
+            dialog.add_response("ssh", _("Upgrade over SSH"))
+            dialog.set_response_appearance("ssh", Adw.ResponseAppearance.SUGGESTED)
+
+        def done(result, error):
+            if error:
+                self.explain(_("Upgrade failed"), str(error) + "\n\n" + _("Use the upgrade console instead."))
+                return
+            text = _("{node} is up to date").format(node=node["node"])
+            if result["reboot"]:
+                self.explain(_("Reboot recommended"), _("{node} has a new kernel; it takes effect after a reboot.").format(node=node["node"]))
+            self.toast(text, "success")
+
+        def on_response(_dialog, response):
+            if response == "console":
+                self.open_uri(core.upgrade_console_url(host, node["node"]))
+            elif response == "ssh":
+                self.toast(_("Upgrading {node}… this can take a few minutes").format(node=node["node"]))
+                run_async(lambda: core.upgrade_via_ssh(host), done)
 
         dialog.connect("response", on_response)
         dialog.present()
