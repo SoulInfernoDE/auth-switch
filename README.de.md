@@ -22,6 +22,7 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
 ## Funktionen
 
 - Konten sind API-Tokens (`benutzer@realm!name`); mehrere pro Server, eines aktiv
+- Findet beim Hinzufügen eines Kontos Proxmox-VE-Server in deinen lokalen Netzen
 - Zeigt pro Konto, ob das Token noch funktioniert, und die Proxmox-VE-Version
 - Server mit selbstsigniertem Zertifikat – bei Proxmox VE der Standard – werden
   auf den Fingerabdruck festgelegt, den du einmal bestätigt hast
@@ -49,14 +50,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.1_all.deb
+sudo apt install ./auth-switch_0.3.2_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.1-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.2-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -65,8 +66,10 @@ pipx install --system-site-packages auth_switch-0.3.1-py3-none-any.whl
    API-Token** öffnen und ein Token anlegen. Gib ihm nur die nötigen
    Berechtigungen; bei aktivierter *Privilegientrennung* müssen sie dem Token
    selbst erteilt werden.
-2. In Auth-Switch **+** drücken, Serveradresse, Token-ID (`benutzer@realm!name`)
-   und Geheimnis eingeben.
+2. In Auth-Switch **+** drücken. Auth-Switch durchsucht deine lokalen Netze
+   nach Proxmox-VE-Servern und trägt die Adresse des ersten gefundenen ein;
+   wähle einen anderen aus der Liste oder gib eine Adresse ein. Dann Token-ID
+   (`benutzer@realm!name`) und Geheimnis eingeben.
 3. Vertraut dein System dem Zertifikat des Servers nicht, zeigt Auth-Switch
    dessen SHA-256-Fingerabdruck. Vergleiche ihn mit **Knoten → System →
    Zertifikate** oder `pvenode cert info` auf dem Server und bestätige nur,
@@ -118,6 +121,12 @@ aktives Abonnement, nutzt aber noch das Enterprise-Repository, bietet es an,
 Zum Lesen braucht es das Recht `Sys.Audit` auf den Knoten, zum Umstellen der
 Repositories `Sys.Modify`, meist mit einem Token von `root@pam`. **Abonnement
 und Repository …** im Menü eines Kontos führt die Prüfung erneut aus.
+
+Die Suche fragt jede Adresse der privaten Netze, an die dein Rechner direkt
+angeschlossen ist (höchstens 1024 Adressen, größere Netze werden auf dein
+eigenes /24 eingegrenzt), auf Port 8006 nach der Startseite und erkennt die
+Proxmox-VE-Weboberfläche an ihrem Titel. Sie sendet weder Konto noch Geheimnis;
+Container- und VPN-Schnittstellen werden übersprungen.
 
 ## So werden Geheimnisse geschützt
 

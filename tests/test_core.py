@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from authswitch import core, leaks, mcp, update
+from authswitch import core, discovery, leaks, mcp, update
 
 TOKEN = "root@pam!automation"
 SECRET = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0"
@@ -235,12 +235,39 @@ class InputTest(unittest.TestCase):
         self.assertEqual(core._encode({"onboot": True, "memory": 2048, "skip": None}), "onboot=1&memory=2048")
 
 
+class DiscoveryTest(unittest.TestCase):
+    def test_local_networks(self):
+        interfaces = [
+            {"ifname": "lo", "addr_info": [{"local": "127.0.0.1", "prefixlen": 8}]},
+            {"ifname": "wlan0", "addr_info": [{"local": "192.168.178.22", "prefixlen": 24}]},
+            {"ifname": "eth1", "addr_info": [{"local": "10.20.30.40", "prefixlen": 16}]},
+            {"ifname": "docker0", "addr_info": [{"local": "172.17.0.1", "prefixlen": 16}]},
+            {"ifname": "eth2", "addr_info": [{"local": "81.2.69.5", "prefixlen": 24}]},
+        ]
+        with mock.patch.object(discovery.subprocess, "run", return_value=mock.Mock(stdout=json.dumps(interfaces))):
+            networks = [str(n) for n in discovery.local_networks()]
+        self.assertEqual(networks, ["192.168.178.0/24", "10.20.30.0/24"])
+
+    def test_discover_keeps_only_proxmox(self):
+        import ipaddress
+
+        names = {"192.168.1.10": "pve", "192.168.1.11": "pve2"}
+        with mock.patch.object(discovery, "probe", side_effect=lambda address, timeout: names.get(address)):
+            found = discovery.discover([ipaddress.ip_network("192.168.1.0/28")])
+        self.assertEqual(found, [
+            {"host": "192.168.1.10:8006", "address": "192.168.1.10", "name": "pve"},
+            {"host": "192.168.1.11:8006", "address": "192.168.1.11", "name": "pve2"},
+        ])
+
+
 class _Handler(http.server.BaseHTTPRequestHandler):
     seen: list = []
 
     def do_GET(self):
         _Handler.seen.append(self.headers.get("Authorization"))
         body = json.dumps({"data": {"version": "8.2.4"}}).encode()
+        if self.path == "/":
+            body = b"<html><head><title>pve-lab - Proxmox Virtual Environment</title></head></html>"
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -289,6 +316,12 @@ class PinningTest(unittest.TestCase):
         pin = core.server_fingerprint(self.host)
         self.assertEqual(core.request(self.host, TOKEN, SECRET, "GET", "/version", fingerprint=pin), {"version": "8.2.4"})
         self.assertEqual(_Handler.seen, [f"PVEAPIToken={TOKEN}={SECRET}"])
+
+    def test_probe_recognises_the_web_interface(self):
+        address, port = self.host.split(":")
+        self.assertEqual(discovery.probe(address, int(port)), "pve-lab")
+        self.assertIsNone(discovery.probe("127.0.0.1", 1))
+        self.assertEqual(_Handler.seen, [None])
 
     def test_wrong_pin_sends_nothing(self):
         with self.assertRaises(core.AuthError):

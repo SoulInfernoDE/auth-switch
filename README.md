@@ -21,6 +21,7 @@ Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch)
 ## Features
 
 - Accounts are API tokens (`user@realm!name`); several per server, one active
+- Finds Proxmox VE servers in your local networks when you add an account
 - Shows per account whether the token still works and the Proxmox VE version
 - Servers with a self-signed certificate – the Proxmox VE default – are pinned
   to the fingerprint you confirmed once
@@ -48,14 +49,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.3.1_all.deb
+sudo apt install ./auth-switch_0.3.2_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.1-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.2-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -63,7 +64,9 @@ pipx install --system-site-packages auth_switch-0.3.1-py3-none-any.whl
 1. In the Proxmox VE web interface open **Datacenter → Permissions → API
    Tokens** and add a token. Give it only the permissions it needs; with
    *Privilege Separation* enabled, grant them to the token itself.
-2. In Auth-Switch press **+**, enter the server address, the token ID
+2. In Auth-Switch press **+**. Auth-Switch searches your local networks for
+   Proxmox VE servers and fills in the address of the first one it finds;
+   choose another from the list or type an address. Then enter the token ID
    (`user@realm!name`) and the secret.
 3. If the server's certificate is not trusted by your system, Auth-Switch
    shows its SHA-256 fingerprint. Compare it with **Node → System →
@@ -114,6 +117,12 @@ active subscription but still uses the enterprise repository, it offers to
 Reading needs the right `Sys.Audit` on the nodes and changing the repositories
 `Sys.Modify`, usually with a token of `root@pam`. **Subscription and
 repository…** in an account's menu runs the check again.
+
+The search asks every address of the private networks your computer is
+directly attached to (at most 1024 addresses, larger networks are narrowed to
+your own /24) for the start page on port 8006 and recognises the Proxmox VE web
+interface by its title. It sends no account or secret; container and VPN
+interfaces are skipped.
 
 ## How secrets are protected
 

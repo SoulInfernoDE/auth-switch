@@ -13,7 +13,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import __version__, core, sound, update  # noqa: E402
+from . import __version__, core, discovery, sound, update  # noqa: E402
 from .i18n import _  # noqa: E402
 
 APP_ID = ICON_NAME = "dev.authswitch.AuthSwitch"
@@ -463,11 +463,54 @@ class Window(Adw.ApplicationWindow):
         web = Gtk.Button(icon_name="web-browser-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Open web interface"))
         web.add_css_class("flat")
         server.add_suffix(web)
+        found_model = Gtk.StringList()
+        found = Adw.ComboRow(title=_("Servers in your network"), model=found_model)
+        search = Gtk.Button(icon_name="system-search-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Search again"))
+        search.add_css_class("flat")
+        spinner = Gtk.Spinner()
+        found.add_suffix(spinner)
+        found.add_suffix(search)
         rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         rows.add_css_class("boxed-list")
         rows.set_size_request(420, -1)
-        for row in (server, token, secret):
+        for row in (found, server, token, secret):
             rows.append(row)
+        servers: list[dict] = []
+        known = {account.host for account in core.list_accounts()}
+
+        def discovered(result, error):
+            spinner.stop()
+            search.set_sensitive(True)
+            servers[:] = result or []
+            names = [s["name"] for s in servers]
+            # The address follows in the field below; it only goes into the list to tell equal names apart.
+            labels = [s["name"] if names.count(s["name"]) == 1 else f"{s['name']} ({s['address']})" for s in servers]
+            found_model.splice(0, found_model.get_n_items(), [
+                label + (" " + _("(already added)") if s["host"] in known else "") for label, s in zip(labels, servers)
+            ])
+            if error or not servers:
+                found.set_subtitle(_("No Proxmox VE server found in your local networks"))
+                return
+            found.set_subtitle(_("{count} found").format(count=len(servers)))
+            if not server.get_text().strip():
+                fresh = [s for s in servers if s["host"] not in known] or servers
+                found.set_selected(servers.index(fresh[0]))
+                server.set_text(fresh[0]["host"])
+
+        def search_network(*_args):
+            spinner.start()
+            search.set_sensitive(False)
+            found.set_subtitle(_("Searching your local networks…"))
+            run_async(discovery.discover, discovered)
+
+        def picked(*_args):
+            index = found.get_selected()
+            if 0 <= index < len(servers):
+                server.set_text(servers[index]["host"])
+
+        found.connect("notify::selected", picked)
+        search.connect("clicked", search_network)
+        search_network()
 
         dialog = Adw.MessageDialog(
             transient_for=self,
