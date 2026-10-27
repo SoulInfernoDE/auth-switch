@@ -53,14 +53,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.10_all.deb
+sudo apt install ./auth-switch_0.3.11_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.10-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.11-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -161,10 +161,12 @@ ausstehende Updates jedes Knotens und stellt die Standardsprache der
 Weboberfläche für den ganzen Cluster ein – oder überlässt sie dem Browser.
 
 **Upgraden** installiert alle ausstehenden Updates eines Knotens mit
-`apt dist-upgrade`, wie der Upgrade-Knopf der Weboberfläche: entweder in dessen
-eigener Upgrade-Konsole im Browser, in der du jeden Schritt siehst, oder
-unbeaufsichtigt per SSH als root mit deinen vorhandenen Schlüsseln. Danach
-meldet Auth-Switch, ob ein neuer Kernel einen Neustart braucht. Es bleibt
+`apt dist-upgrade`, wie der Upgrade-Knopf der Weboberfläche. Ein Klick genügt:
+Funktioniert SSH als root – mit dem Schlüssel von **SSH für mein Terminal** oder
+einem eigenen –, läuft das Upgrade sofort mit Fortschrittshinweis durch, und
+Auth-Switch meldet danach, ob ein neuer Kernel einen Neustart braucht. Sonst
+bietet es die Upgrade-Konsole der Weboberfläche an, die nach der Anmeldung jeden
+Schritt zeigt, sowie die SSH-Einrichtung. Es bleibt
 innerhalb der installierten Hauptversion; für die nächste verlinkt der Dialog
 die offizielle Upgrade-Anleitung, weil ein Hauptversions-Upgrade Vorbereitung
 braucht, die nicht unbeaufsichtigt laufen sollte.

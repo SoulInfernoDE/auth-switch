@@ -1074,7 +1074,7 @@ class Window(Adw.ApplicationWindow):
         for node in nodes:
             row = Adw.ActionRow(title=node["node"], use_markup=False)
             button = Gtk.Button(label=_("Upgrade"), valign=Gtk.Align.CENTER)
-            button.connect("clicked", lambda _b, n=node: self.prepare_upgrade(host, manager, n))
+            button.connect("clicked", lambda b, n=node: self.prepare_upgrade(host, manager, n, b, reread))
             row.add_suffix(button)
             rows.append(row)
             node_rows.append((row, button))
@@ -1107,6 +1107,9 @@ class Window(Adw.ApplicationWindow):
 
         refresh_button.connect("clicked", run_refresh)
 
+        def reread():
+            run_async(lambda: core.node_updates(host, manager), lambda result, error: show_nodes(result) if result else None)
+
         guide = core.major_upgrade_guide(nodes[0]["version"]) if nodes else ""
         body = _(
             "Upgrade installs all pending updates of a node, the same as the Upgrade button of the web interface. It "
@@ -1124,47 +1127,58 @@ class Window(Adw.ApplicationWindow):
         dialog.connect("response", on_response)
         dialog.present()
 
-    def prepare_upgrade(self, host: str, manager: core.Account, node: dict) -> None:
-        """SSH is only offered when it really works, so the check comes first."""
+    def prepare_upgrade(self, host: str, manager: core.Account, node: dict, button: Gtk.Button, refresh) -> None:
+        """One click: if SSH works, the upgrade simply runs; otherwise the upgrade console is offered."""
         if not node["local"]:
-            self.confirm_upgrade(host, manager, node, False)
+            self.offer_upgrade_console(host, manager, node)
             return
+        button.set_sensitive(False)
         done_loading = self.busy(_("Checking SSH access…"))
 
-        def checked(ready, _error):
-            done_loading()
-            self.confirm_upgrade(host, manager, node, bool(ready))
-
-        run_async(lambda: core.ssh_ready(host), checked)
-
-    def confirm_upgrade(self, host: str, manager: core.Account, node: dict, ssh: bool) -> None:
-        body = _(
-            "Installs {count} updates on {node} with apt dist-upgrade. Running guests keep running; a new kernel only "
-            "takes effect after a reboot. The upgrade console of the web interface shows every step; SSH runs it "
-            "unattended as root, with the key of \"SSH for my terminal\" while it is on."
-        ).format(count=node["updates"], node=node["node"])
-        dialog = Adw.MessageDialog(transient_for=self, heading=_("Upgrade {node}?").format(node=node["node"]), body=body)
-        dialog.add_response("cancel", _("Cancel"))
-        dialog.add_response("console", _("Open upgrade console"))
-        if ssh:
-            dialog.add_response("ssh", _("Upgrade over SSH"))
-            dialog.set_response_appearance("ssh", Adw.ResponseAppearance.SUGGESTED)
-
-        def done(result, error):
+        def finished(result, error):
+            done_upgrading()
+            button.set_sensitive(True)
+            refresh()
             if error:
                 self.explain(_("Upgrade failed"), str(error) + "\n\n" + _("Use the upgrade console instead."))
                 return
-            text = _("{node} is up to date").format(node=node["node"])
+            self.toast(_("{node} is up to date").format(node=node["node"]), "success")
             if result["reboot"]:
-                self.explain(_("Reboot recommended"), _("{node} has a new kernel; it takes effect after a reboot.").format(node=node["node"]))
-            self.toast(text, "success")
+                self.explain(
+                    _("Reboot recommended"), _("{node} has a new kernel; it takes effect after a reboot.").format(node=node["node"])
+                )
+
+        def checked(ready, _error):
+            nonlocal done_upgrading
+            done_loading()
+            if not ready:
+                button.set_sensitive(True)
+                self.offer_upgrade_console(host, manager, node)
+                return
+            done_upgrading = self.busy(_("Upgrading {node}… this can take a few minutes").format(node=node["node"]))
+            run_async(lambda: core.upgrade_via_ssh(host), finished)
+
+        done_upgrading = lambda: None  # noqa: E731 - replaced once the upgrade starts
+        run_async(lambda: core.ssh_ready(host), checked)
+
+    def offer_upgrade_console(self, host: str, manager: core.Account, node: dict) -> None:
+        body = _(
+            "SSH as root does not work for {node}, so the upgrade runs in the upgrade console of the web interface, "
+            "which shows every step after you sign in. For upgrades with a single click, set up \"SSH for my "
+            "terminal\" once."
+        ).format(node=node["node"])
+        dialog = Adw.MessageDialog(transient_for=self, heading=_("Upgrade {node}?").format(node=node["node"]), body=body)
+        dialog.add_response("cancel", _("Cancel"))
+        if node["local"]:
+            dialog.add_response("ssh", _("Set up SSH…"))
+        dialog.add_response("console", _("Open upgrade console"))
+        dialog.set_response_appearance("console", Adw.ResponseAppearance.SUGGESTED)
 
         def on_response(_dialog, response):
             if response == "console":
                 self.open_uri(core.upgrade_console_url(host, node["node"]))
             elif response == "ssh":
-                self.toast(_("Upgrading {node}… this can take a few minutes").format(node=node["node"]))
-                run_async(lambda: core.upgrade_via_ssh(host), done)
+                self.open_ssh(host, manager.token_id)
 
         dialog.connect("response", on_response)
         dialog.present()
