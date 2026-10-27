@@ -615,10 +615,11 @@ cat > /usr/local/sbin/pve-subscription-notice-hook <<'HOOK'
 # Remove this file and /etc/apt/apt.conf.d/99-pve-subscription-notice to undo it.
 f=/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
 [ -f "$f" ] || exit 0
-grep -q "void({ //Ext.Msg.show" "$f" && exit 0
 grep -q "No valid sub" "$f" || exit 0
+# Only the check in checked_command is changed, so the action behind the notice still runs.
+grep -Ezq "!res \|\|\s*res\s*\.data\.status\.toLowerCase\(\) !== 'active'" "$f" || exit 0
 cp "$f" "$f.auth-switch.orig"
-sed -Ezi "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" "$f"
+sed -Ezi "s/(!res \|\|\s*)res\s*\.data\.status\.toLowerCase\(\) !== 'active'/\1false/" "$f"
 systemctl restart pveproxy.service || true
 exit 0
 HOOK

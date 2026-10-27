@@ -175,7 +175,8 @@ class AccountTest(unittest.TestCase):
         encoded = core.notice_fix_command().split()[1]
         self.assertEqual(base64.b64decode(encoded).decode(), core.NOTICE_FIX_SCRIPT)
         self.assertIn("99-pve-subscription-notice", core.NOTICE_FIX_SCRIPT)
-        self.assertIn(r"void\(\{ \/\/\1/g", core.NOTICE_FIX_SCRIPT)
+        self.assertIn(r"/\1false/", core.NOTICE_FIX_SCRIPT)
+        self.assertNotIn("void(", core.NOTICE_FIX_SCRIPT)
 
     def test_mcp_tools(self):
         names = [tool["name"] for tool in mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]]

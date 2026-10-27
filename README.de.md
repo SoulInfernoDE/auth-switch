@@ -111,7 +111,9 @@ aktives Abonnement, nutzt aber noch das Enterprise-Repository, bietet es an,
    und ein APT-Hook in `/etc/apt/apt.conf.d/99-pve-subscription-notice`, der den
    Hinweis nach jedem Update von `proxmox-widget-toolkit` wieder ausblendet und
    die Originaldatei als `proxmoxlib.js.auth-switch.orig` aufbewahrt. Löschen
-   beider Dateien macht es rückgängig.
+   beider Dateien macht es rückgängig. Anders als das verbreitete Rezept, das
+   den Dialog auskommentiert, ändert es nur die Abo-Prüfung; die Aktion hinter
+   dem Hinweis – etwa ein Repository hinzufügen – läuft also weiterhin.
 
 Zum Lesen braucht es das Recht `Sys.Audit` auf den Knoten, zum Umstellen der
 Repositories `Sys.Modify`, meist mit einem Token von `root@pam`. **Abonnement

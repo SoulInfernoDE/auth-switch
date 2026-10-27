@@ -107,6 +107,9 @@ active subscription but still uses the enterprise repository, it offers to
    `/etc/apt/apt.conf.d/99-pve-subscription-notice`, which hides the notice
    again after every update of `proxmox-widget-toolkit` and keeps the original
    file as `proxmoxlib.js.auth-switch.orig`. Deleting both files undoes it.
+   Unlike the common recipe that comments out the dialog, it only changes the
+   subscription check, so the action the notice stands in front of – such as
+   adding a repository – still runs.
 
 Reading needs the right `Sys.Audit` on the nodes and changing the repositories
 `Sys.Modify`, usually with a token of `root@pam`. **Subscription and
