@@ -81,6 +81,25 @@ class AccountTest(unittest.TestCase):
         self.assertEqual(env["PM_API_URL"], "https://pve.example.com:8006/api2/json")
         self.assertEqual((env["PROXMOX_USER"], env["PROXMOX_TOKEN_ID"]), ("root@pam", "automation"))
 
+    def test_token_permissions(self):
+        core.add_account("pve.example.com", "ops@pve!ci", "1" * 36)
+        manager = core.find_account(TOKEN)
+        acl = [
+            {"type": "token", "ugid": "ops@pve!ci", "path": "/", "roleid": "PVEVMUser"},
+            {"type": "token", "ugid": "ops@pve!ci", "path": "/vms/100", "roleid": "PVEVMAdmin"},
+            {"type": "user", "ugid": "ops@pve", "path": "/", "roleid": "PVEAuditor"},
+        ]
+        with mock.patch.object(core, "request", side_effect=[{"privsep": 1}, acl]) as request:
+            self.assertEqual(core.token_permissions(manager.host, "ops@pve!ci", manager), {"privsep": True, "roles": {"PVEVMUser"}})
+        self.assertEqual(request.call_args_list[0].args[4], "/access/users/ops@pve/token/ci")
+        with mock.patch.object(core, "request") as request:
+            core.set_token_roles(manager.host, "ops@pve!ci", {"PVEUserAdmin"}, {"PVEVMUser"}, manager)
+        grant, revoke = (call.args[5] for call in request.call_args_list)
+        self.assertEqual(grant, {"path": "/", "roles": "PVEUserAdmin", "tokens": "ops@pve!ci", "propagate": True})
+        self.assertEqual(revoke["roles"], "PVEVMUser")
+        self.assertTrue(revoke["delete"])
+        self.assertTrue(all(call.args[1] == TOKEN for call in request.call_args_list))
+
     def test_mcp_tools(self):
         names = [tool["name"] for tool in mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]]
         self.assertEqual(
@@ -121,12 +140,18 @@ class InputTest(unittest.TestCase):
             ("GET", "/nodes /x"),
             ("POST", "/access/ticket"),
             ("POST", "/access/users/root@pam/token/new"),
+            ("POST", "/access/users/root@pam/token"),
             ("POST", "/nodes/pve/qemu/100/vncproxy"),
             ("POST", "/nodes/pve/termproxy"),
             ("PATCH", "/nodes"),
         ):
             with self.assertRaises(core.AuthError, msg=path):
                 core.request("127.0.0.1:1", TOKEN, SECRET, method, path)
+
+    def test_token_settings_may_be_read(self):
+        with mock.patch.object(core, "_Connection") as connection:
+            connection.return_value.getresponse.return_value = mock.Mock(status=200, read=lambda: b'{"data": {"privsep": 1}}')
+            self.assertEqual(core.request("h:1", TOKEN, SECRET, "GET", "/access/users/root@pam/token/x"), {"privsep": 1})
 
     def test_form_encoding(self):
         self.assertEqual(core._encode({"onboot": True, "memory": 2048, "skip": None}), "onboot=1&memory=2048")

@@ -25,6 +25,8 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
 - Zeigt pro Konto, ob das Token noch funktioniert, und die Proxmox-VE-Version
 - Server mit selbstsigniertem Zertifikat – bei Proxmox VE der Standard – werden
   auf den Fingerabdruck festgelegt, den du einmal bestätigt hast
+- Per Schalter festlegen, was ein Token darf – Gäste lesen, benutzen oder
+  verwalten, Speicher, Konten, Netzwerke oder Knoten verwalten (Proxmox-VE-Rollen)
 - Startet andere Werkzeuge mit dem aktiven Konto: `auth-switch exec -- terraform plan`
 - MCP-Server mit Lese- und Schreibzugriff auf die Proxmox-VE-API
 - Leak-Prüfung: findet Token-Geheimnisse, Serveradressen, deine echte
@@ -41,14 +43,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.1.0_all.deb
+sudo apt install ./auth-switch_0.2.0_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.1.0-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.2.0-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -63,6 +65,18 @@ pipx install --system-site-packages auth_switch-0.1.0-py3-none-any.whl
    dessen SHA-256-Fingerabdruck. Vergleiche ihn mit **Knoten → System →
    Zertifikate** oder `pvenode cert info` auf dem Server und bestätige nur,
    wenn er übereinstimmt.
+
+## Berechtigungen
+
+**Berechtigungen …** im Menü eines Kontos zeigt Schalter für die eingebauten
+Proxmox-VE-Rollen, zum Beispiel *Gäste benutzen* (PVEVMUser), *Gäste verwalten*
+(PVEVMAdmin) oder *Konten verwalten* (PVEUserAdmin), und erteilt oder entzieht
+sie dem Token für den ganzen Server (Pfad `/`). Rechte auf anderen Pfaden
+bleiben unverändert. Zum Ändern braucht es ein Konto, das Berechtigungen ändern
+darf, meist ein Token von `root@pam`; der Dialog nimmt dafür ein anderes Konto
+desselben Servers und lässt dich eines auswählen. Ein Token ohne
+Privilegientrennung hat immer alle Rechte seines Benutzers; darauf weist der
+Dialog hin.
 
 ## So werden Geheimnisse geschützt
 

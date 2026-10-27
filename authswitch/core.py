@@ -31,8 +31,10 @@ TOKEN_ID = re.compile(r"[\w.+-]+@[\w.-]+![A-Za-z][\w.-]*")
 API_METHODS = ("GET", "POST", "PUT", "DELETE")
 # Endpoints that hand out tickets or new credentials stay closed, so no secret can end up in a result.
 _CREDENTIAL_PATH = re.compile(
-    r"^/access/(?:ticket|password|tfa|users/[^/]+/token)|/(?:termproxy|vncproxy|spiceproxy|vncwebsocket|mtunnel)\b"
+    r"^/access/(?:ticket|password|tfa)|/(?:termproxy|vncproxy|spiceproxy|vncwebsocket|mtunnel)\b"
 )
+# Creating a token returns its secret; reading or changing a token's settings does not.
+_TOKEN_PATH = re.compile(r"^/access/users/[^/]+/token(?:/|$)")
 
 
 class AuthError(RuntimeError):
@@ -263,11 +265,11 @@ def _encode(params: dict | None) -> str:
     return urllib.parse.urlencode({key: value(item) for key, item in (params or {}).items() if item is not None})
 
 
-def _check_path(path: str) -> None:
+def _check_path(path: str, method: str = "GET") -> None:
     segments = path.split("?", 1)[0].split("/")
     if not path.startswith("/") or path.startswith("//") or ".." in segments or any(c.isspace() for c in path):
         raise AuthError(_("The path must start with a single / and stay below /api2/json."))
-    if _CREDENTIAL_PATH.search(path):
+    if _CREDENTIAL_PATH.search(path) or (method == "POST" and _TOKEN_PATH.search(path)):
         raise AuthError(_("Endpoints that issue tickets or credentials are not available here."))
 
 
@@ -284,7 +286,7 @@ def request(
     method = method.upper()
     if method not in API_METHODS:
         raise AuthError(_("Unsupported method: {method}").format(method=method))
-    _check_path(path)
+    _check_path(path, method)
     query, body, target = _encode(params), None, "/api2/json" + path
     if method in ("POST", "PUT"):
         body, query = query.encode(), ""
@@ -422,6 +424,52 @@ def api(method: str, path: str, params: dict | None = None, host: str | None = N
     """Call the API of a server as its active account."""
     account = active_account(host)
     return request(account.host, account.token_id, _active_secret(account), method, path, params)
+
+
+# --- token permissions ------------------------------------------------------
+
+def permission_roles() -> list[tuple[str, str, str]]:
+    """Built-in Proxmox VE roles offered as switches: (role, title, what it allows)."""
+    return [
+        ("PVEAuditor", _("Read everything"), _("See guests, nodes, storage and settings without changing them")),
+        ("PVEVMUser", _("Use guests"), _("Start, stop, open the console and back up virtual machines and containers")),
+        ("PVEVMAdmin", _("Manage guests"), _("Create, configure, migrate and delete virtual machines and containers")),
+        ("PVEDatastoreAdmin", _("Manage storage"), _("Add storage, upload images and manage backups")),
+        ("PVEPoolAdmin", _("Manage pools"), _("Create resource pools and assign guests to them")),
+        ("PVEUserAdmin", _("Manage accounts"), _("Create, change and delete users, groups and their API tokens")),
+        ("PVESDNAdmin", _("Manage networks"), _("Configure software-defined networks (SDN)")),
+        ("PVESysAdmin", _("Administer nodes"), _("Node settings, network, updates and services")),
+        ("Administrator", _("Full access"), _("Everything, including changing permissions")),
+    ]
+
+
+def _token_path(token_id: str) -> str:
+    user, name = token_id.split("!", 1)
+    return f"/access/users/{urllib.parse.quote(user, safe='@')}/token/{urllib.parse.quote(name)}"
+
+
+def token_permissions(host: str, token_id: str, manager: Account) -> dict:
+    """Roles the token holds on "/" and whether it is privilege-separated, as seen by ``manager``."""
+    secret = _active_secret(manager)
+    info = request(host, manager.token_id, secret, "GET", _token_path(token_id))
+    acl = request(host, manager.token_id, secret, "GET", "/access/acl")
+    roles = {
+        entry.get("roleid")
+        for entry in acl or []
+        if entry.get("type") == "token" and entry.get("ugid") == token_id and entry.get("path") == "/"
+    }
+    return {"privsep": bool(int((info or {}).get("privsep", 1))), "roles": roles}
+
+
+def set_token_roles(host: str, token_id: str, add: set[str], remove: set[str], manager: Account) -> None:
+    """Grant and revoke roles on "/" for the token, using ``manager``'s rights to do so."""
+    secret = _active_secret(manager)
+    for roles, delete in ((add, False), (remove, True)):
+        if roles:
+            params = {"path": "/", "roles": ",".join(sorted(roles)), "tokens": token_id, "propagate": True}
+            if delete:
+                params["delete"] = True
+            request(host, manager.token_id, secret, "PUT", "/access/acl", params)
 
 
 def describe_accounts(check: bool = True) -> list[dict]:

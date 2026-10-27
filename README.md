@@ -24,6 +24,8 @@ Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch)
 - Shows per account whether the token still works and the Proxmox VE version
 - Servers with a self-signed certificate – the Proxmox VE default – are pinned
   to the fingerprint you confirmed once
+- Adjust what a token may do with switches – read, use or manage guests, manage
+  storage, accounts, networks or nodes (Proxmox VE roles)
 - Runs other tools with the active account: `auth-switch exec -- terraform plan`
 - MCP server with read and write access to the Proxmox VE API
 - Leak check: finds token secrets, server addresses, your real e-mail address
@@ -40,14 +42,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.1.0_all.deb
+sudo apt install ./auth-switch_0.2.0_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.1.0-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.2.0-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -61,6 +63,17 @@ pipx install --system-site-packages auth_switch-0.1.0-py3-none-any.whl
    shows its SHA-256 fingerprint. Compare it with **Node → System →
    Certificates** or `pvenode cert info` on the server and confirm only if it
    matches.
+
+## Permissions
+
+**Permissions…** in the menu of an account shows switches for the built-in
+Proxmox VE roles, for example *Use guests* (PVEVMUser), *Manage guests*
+(PVEVMAdmin) or *Manage accounts* (PVEUserAdmin), and grants or revokes them for
+the token on the whole server (path `/`). Rights on other paths stay as they
+are. Changing permissions needs an account that may modify them, usually a
+token of `root@pam`; the dialog uses another account of the same server for
+that and lets you pick it. A token without privilege separation always has all
+rights of its user, so the dialog points this out.
 
 ## How secrets are protected
 

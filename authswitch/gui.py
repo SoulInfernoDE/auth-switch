@@ -73,6 +73,7 @@ class Window(Adw.ApplicationWindow):
         for name, handler, parameter in (
             ("web", lambda _a, p: self.open_uri(core.web_interface(p.unpack())), "s"),
             ("again", lambda _a, p: self.ask_account(*p.unpack()), "(ss)"),
+            ("permissions", lambda _a, p: self.edit_permissions(*p.unpack()), "(ss)"),
             ("remove", self.on_remove_action, "(ss)"),
         ):
             action = Gio.SimpleAction.new(name, GLib.VariantType.new(parameter))
@@ -196,6 +197,7 @@ class Window(Adw.ApplicationWindow):
         target = GLib.Variant("(ss)", (account.host, account.token_id))
         menu = Gio.Menu()
         for label, action, value in (
+            (_("Permissions…"), "win.permissions", target),
             (_("Open web interface"), "win.web", GLib.Variant("s", account.host)),
             (_("Enter secret again"), "win.again", target),
             (_("Remove"), "win.remove", target),
@@ -284,6 +286,76 @@ class Window(Adw.ApplicationWindow):
         def on_response(_dialog, response):
             if response == "remove":
                 run_async(lambda: core.remove_account(account), done)
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    # --- permissions ------------------------------------------------------
+
+    def edit_permissions(self, host: str, token_id: str) -> None:
+        """Switches for the token's roles; another account of the server may be needed to change them."""
+        managers = [a for a in core.list_accounts() if a.host == host]
+        # A token rarely may change its own rights, so prefer another account of the server.
+        managers.sort(key=lambda a: (a.token_id == token_id, not a.active))
+
+        def loaded(result, error, manager):
+            if error:
+                others = [a for a in managers if a != manager]
+                text = str(error)
+                if others:
+                    text += "\n\n" + _("Try again with another account of this server.")
+                self.explain(_("Permissions could not be read"), text)
+                return
+            self.show_permissions(host, token_id, managers, manager, result)
+
+        manager = managers[0]
+        run_async(lambda: core.token_permissions(host, token_id, manager), lambda r, e: loaded(r, e, manager))
+
+    def show_permissions(self, host, token_id, managers, manager, current) -> None:
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.set_size_request(440, -1)
+        switches = {}
+        for role, title, subtitle in core.permission_roles():
+            row = Adw.SwitchRow(title=title, subtitle=subtitle, active=role in current["roles"])
+            row.set_tooltip_text(role)
+            rows.append(row)
+            switches[role] = row
+        chooser = Adw.ComboRow(
+            title=_("Change with"), model=Gtk.StringList.new([a.token_id for a in managers]), selected=managers.index(manager)
+        )
+        rows.append(chooser)
+        scrolled = Gtk.ScrolledWindow(child=rows, min_content_height=420, hscrollbar_policy=Gtk.PolicyType.NEVER)
+
+        body = _(
+            "Roles for {token} on the whole server (path /). Rights on other paths stay as they are. Changing them "
+            "needs an account with the right to modify permissions, such as a token of root@pam."
+        ).format(token=token_id)
+        if not current["privsep"]:
+            body += "\n\n" + _(
+                "This token has no privilege separation, so it holds all rights of its user and these roles have no "
+                "effect. Turn on privilege separation in the web interface to limit it."
+            )
+        dialog = Adw.MessageDialog(
+            transient_for=self, heading=_("Permissions"), body=body, extra_child=scrolled
+        )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("apply", _("Apply"))
+        dialog.set_response_appearance("apply", Adw.ResponseAppearance.SUGGESTED)
+
+        def applied(_result, error):
+            if error:
+                self.explain(_("Permissions could not be changed"), str(error))
+            else:
+                self.toast(_("Permissions of {token} changed").format(token=token_id), "success")
+
+        def on_response(_dialog, response):
+            if response != "apply":
+                return
+            wanted = {role for role, row in switches.items() if row.get_active()}
+            add, remove = wanted - current["roles"], current["roles"] - wanted
+            changer = managers[chooser.get_selected()]
+            run_async(lambda: core.set_token_roles(host, token_id, add, remove, changer), applied)
 
         dialog.connect("response", on_response)
         dialog.present()
