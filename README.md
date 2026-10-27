@@ -26,6 +26,8 @@ Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch)
   to the fingerprint you confirmed once
 - Adjust what a token may do with switches – read, use or manage guests, manage
   storage, accounts, networks or nodes (Proxmox VE roles)
+- Deny a token access to single guests, storages or nodes from a drop-down in
+  its entry
 - Runs other tools with the active account: `auth-switch exec -- terraform plan`
 - MCP server with read and write access to the Proxmox VE API
 - Leak check: finds token secrets, server addresses, your real e-mail address
@@ -42,14 +44,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.2.0_all.deb
+sudo apt install ./auth-switch_0.3.0_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.2.0-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.0-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -74,6 +76,15 @@ are. Changing permissions needs an account that may modify them, usually a
 token of `root@pam`; the dialog uses another account of the same server for
 that and lets you pick it. A token without privilege separation always has all
 rights of its user, so the dialog points this out.
+
+### Access to single guests
+
+The lock button in an account's entry opens a drop-down with every virtual
+machine, container, storage and node of the cluster. Switching one off denies
+the token access to it with the *NoAccess* role, which overrides broader
+rights such as a role on `/`; switching it on again removes that entry. Like
+the roles, this is changed with another account of the server, selectable at
+the bottom of the drop-down.
 
 ## How secrets are protected
 

@@ -27,6 +27,8 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
   auf den Fingerabdruck festgelegt, den du einmal bestätigt hast
 - Per Schalter festlegen, was ein Token darf – Gäste lesen, benutzen oder
   verwalten, Speicher, Konten, Netzwerke oder Knoten verwalten (Proxmox-VE-Rollen)
+- Einem Token den Zugriff auf einzelne Gäste, Speicher oder Knoten über ein
+  Dropdown im Eintrag verweigern
 - Startet andere Werkzeuge mit dem aktiven Konto: `auth-switch exec -- terraform plan`
 - MCP-Server mit Lese- und Schreibzugriff auf die Proxmox-VE-API
 - Leak-Prüfung: findet Token-Geheimnisse, Serveradressen, deine echte
@@ -43,14 +45,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.2.0_all.deb
+sudo apt install ./auth-switch_0.3.0_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.2.0-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.0-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -77,6 +79,15 @@ darf, meist ein Token von `root@pam`; der Dialog nimmt dafür ein anderes Konto
 desselben Servers und lässt dich eines auswählen. Ein Token ohne
 Privilegientrennung hat immer alle Rechte seines Benutzers; darauf weist der
 Dialog hin.
+
+### Zugriff auf einzelne Gäste
+
+Der Schloss-Knopf im Eintrag eines Kontos öffnet ein Dropdown mit allen
+virtuellen Maschinen, Containern, Speichern und Knoten des Clusters.
+Ausschalten verweigert dem Token den Zugriff darauf mit der Rolle *NoAccess*,
+die weiter gefasste Rechte wie eine Rolle auf `/` übersteuert; Einschalten
+entfernt diesen Eintrag wieder. Wie bei den Rollen geschieht das mit einem
+anderen Konto des Servers, auswählbar unten im Dropdown.
 
 ## So werden Geheimnisse geschützt
 

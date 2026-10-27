@@ -100,6 +100,35 @@ class AccountTest(unittest.TestCase):
         self.assertTrue(revoke["delete"])
         self.assertTrue(all(call.args[1] == TOKEN for call in request.call_args_list))
 
+    def test_resources_and_denied_access(self):
+        manager = core.find_account(TOKEN)
+        resources = [
+            {"type": "qemu", "vmid": 101, "name": "web", "node": "pve"},
+            {"type": "lxc", "vmid": 200, "name": "dns", "node": "pve"},
+            {"type": "storage", "storage": "local", "node": "pve"},
+            {"type": "storage", "storage": "local", "node": "pve2"},
+            {"type": "node", "node": "pve"},
+            {"type": "sdn", "sdn": "localnetwork"},
+        ]
+        with mock.patch.object(core, "request", return_value=resources):
+            listed = core.list_resources(manager.host, manager)
+        self.assertEqual([r["path"] for r in listed], ["/vms/101", "/vms/200", "/storage/local", "/nodes/pve"])
+        self.assertEqual(listed[0]["label"], "101 · web")
+        acl = [
+            {"type": "token", "ugid": "ops@pve!ci", "path": "/vms/101", "roleid": "NoAccess"},
+            {"type": "token", "ugid": "ops@pve!ci", "path": "/", "roleid": "PVEVMAdmin"},
+            {"type": "token", "ugid": "other@pve!x", "path": "/vms/200", "roleid": "NoAccess"},
+        ]
+        with mock.patch.object(core, "request", return_value=acl):
+            self.assertEqual(core.denied_paths(manager.host, "ops@pve!ci", manager), {"/vms/101"})
+        with mock.patch.object(core, "request") as request:
+            core.set_denied(manager.host, "ops@pve!ci", "/vms/101", True, manager)
+            core.set_denied(manager.host, "ops@pve!ci", "/vms/101", False, manager)
+        deny, allow = (call.args[5] for call in request.call_args_list)
+        self.assertEqual(deny, {"path": "/vms/101", "roles": "NoAccess", "tokens": "ops@pve!ci", "propagate": True})
+        self.assertTrue(allow["delete"])
+        self.assertEqual(core.managers_for(manager.host, TOKEN), [manager])
+
     def test_mcp_tools(self):
         names = [tool["name"] for tool in mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]]
         self.assertEqual(

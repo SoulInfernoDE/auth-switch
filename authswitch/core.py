@@ -472,6 +472,54 @@ def set_token_roles(host: str, token_id: str, add: set[str], remove: set[str], m
             request(host, manager.token_id, secret, "PUT", "/access/acl", params)
 
 
+# --- access to single resources ---------------------------------------------
+
+NO_ACCESS = "NoAccess"
+
+
+def managers_for(host: str, token_id: str) -> list[Account]:
+    """Accounts of ``host`` that may change rights, best first: another account than the token, active first."""
+    candidates = [account for account in list_accounts() if account.host == host]
+    return sorted(candidates, key=lambda a: (a.token_id == token_id, not a.active))
+
+
+def list_resources(host: str, manager: Account) -> list[dict]:
+    """Guests, storages and nodes of the cluster with the ACL path that controls access to them."""
+    data = request(host, manager.token_id, _active_secret(manager), "GET", "/cluster/resources") or []
+    found: dict[str, dict] = {}
+    for item in data:
+        kind = item.get("type")
+        if kind in ("qemu", "lxc") and item.get("vmid") is not None:
+            path, label = f"/vms/{item['vmid']}", f"{item['vmid']} · {item.get('name') or ''}".rstrip(" ·")
+        elif kind == "storage" and item.get("storage"):
+            path, label = f"/storage/{item['storage']}", str(item["storage"])
+        elif kind == "node" and item.get("node"):
+            path, label = f"/nodes/{item['node']}", str(item["node"])
+        else:
+            continue
+        # Storages are listed once per node but share one ACL path.
+        found.setdefault(path, {"path": path, "kind": kind, "label": label, "node": item.get("node", "")})
+    order = {"qemu": 0, "lxc": 0, "storage": 1, "node": 2}
+    return sorted(found.values(), key=lambda r: (order[r["kind"]], r["path"]))
+
+
+def denied_paths(host: str, token_id: str, manager: Account) -> set[str]:
+    acl = request(host, manager.token_id, _active_secret(manager), "GET", "/access/acl") or []
+    return {
+        entry.get("path")
+        for entry in acl
+        if entry.get("type") == "token" and entry.get("ugid") == token_id and entry.get("roleid") == NO_ACCESS
+    }
+
+
+def set_denied(host: str, token_id: str, path: str, denied: bool, manager: Account) -> None:
+    """Deny the token access to ``path`` with the NoAccess role, which overrides rights inherited from above."""
+    params = {"path": path, "roles": NO_ACCESS, "tokens": token_id, "propagate": True}
+    if not denied:
+        params["delete"] = True
+    request(host, manager.token_id, _active_secret(manager), "PUT", "/access/acl", params)
+
+
 def describe_accounts(check: bool = True) -> list[dict]:
     """Plain-data view of all accounts; never includes a secret."""
     described = []

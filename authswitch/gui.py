@@ -205,6 +205,12 @@ class Window(Adw.ApplicationWindow):
             item = Gio.MenuItem.new(label, None)
             item.set_action_and_target_value(action, value)
             menu.append_item(item)
+        access = Gtk.MenuButton(
+            icon_name="changes-prevent-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Access to guests and storage")
+        )
+        access.add_css_class("flat")
+        access.set_popover(self.build_access_popover(account))
+        row.add_suffix(access)
         more = Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, valign=Gtk.Align.CENTER)
         more.add_css_class("flat")
         row.add_suffix(more)
@@ -292,11 +298,88 @@ class Window(Adw.ApplicationWindow):
 
     # --- permissions ------------------------------------------------------
 
+    def build_access_popover(self, account: core.Account) -> Gtk.Popover:
+        """Drop-down with one switch per guest, storage and node; off means the token is denied access."""
+        managers = core.managers_for(account.host, account.token_id)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=6, margin_bottom=6, margin_start=6, margin_end=6)
+        heading = Gtk.Label(label=_("Access for {token}").format(token=account.token_id), xalign=0)
+        heading.add_css_class("heading")
+        hint = Gtk.Label(label=_("Switched off means no access, even if broader rights would allow it."), xalign=0, wrap=True, max_width_chars=40)
+        hint.add_css_class("dim-label")
+        status = Gtk.Label(xalign=0, wrap=True, max_width_chars=40)
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        scrolled = Gtk.ScrolledWindow(child=rows, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True, max_content_height=420, min_content_width=340)
+        chooser = Gtk.DropDown(model=Gtk.StringList.new([a.token_id for a in managers]), tooltip_text=_("Change with"))
+        chooser.set_visible(len(managers) > 1)
+        for widget in (heading, hint, status, scrolled, chooser):
+            box.append(widget)
+        popover = Gtk.Popover(child=box)
+        icons = {"qemu": "computer-symbolic", "lxc": "package-x-generic-symbolic", "storage": "drive-harddisk-symbolic", "node": "network-server-symbolic"}
+        kinds = {"qemu": _("Virtual machine"), "lxc": _("Container"), "storage": _("Storage"), "node": _("Node")}
+
+        def manager() -> core.Account:
+            return managers[chooser.get_selected()]
+
+        def toggled(switch, _pspec, path):
+            if getattr(switch, "busy", False):
+                return
+            denied = not switch.get_active()
+            switch.set_sensitive(False)
+
+            def done(_result, error):
+                switch.set_sensitive(True)
+                if error:
+                    switch.busy = True
+                    switch.set_active(denied)
+                    switch.busy = False
+                    self.explain(_("Access could not be changed"), str(error))
+                else:
+                    text = _("Access to {path} denied") if denied else _("Access to {path} allowed")
+                    self.toast(text.format(path=path), "signout" if denied else "switch")
+
+            run_async(lambda: core.set_denied(account.host, account.token_id, path, denied, manager()), done)
+
+        def loaded(result, error):
+            while (child := rows.get_first_child()) is not None:
+                rows.remove(child)
+            if error:
+                status.set_label(str(error))
+                return
+            resources, denied, privsep = result
+            status.set_label("" if privsep else _("This token has no privilege separation, so denying access has no effect."))
+            for resource in resources:
+                row = Adw.ActionRow(title=resource["label"], subtitle=kinds[resource["kind"]], use_markup=False)
+                row.add_prefix(Gtk.Image(icon_name=icons[resource["kind"]]))
+                switch = Gtk.Switch(active=resource["path"] not in denied, valign=Gtk.Align.CENTER, tooltip_text=resource["path"])
+                switch.connect("notify::active", toggled, resource["path"])
+                row.add_suffix(switch)
+                row.set_activatable_widget(switch)
+                rows.append(row)
+            if not resources:
+                status.set_label(_("No guests, storages or nodes are visible to the selected account."))
+
+        def load(*_args):
+            status.set_label(_("Loading…"))
+            chosen = manager()
+
+            def fetch():
+                return (
+                    core.list_resources(account.host, chosen),
+                    core.denied_paths(account.host, account.token_id, chosen),
+                    core.token_permissions(account.host, account.token_id, chosen)["privsep"],
+                )
+
+            run_async(fetch, loaded)
+
+        popover.connect("show", load)
+        chooser.connect("notify::selected", load)
+        return popover
+
     def edit_permissions(self, host: str, token_id: str) -> None:
         """Switches for the token's roles; another account of the server may be needed to change them."""
-        managers = [a for a in core.list_accounts() if a.host == host]
         # A token rarely may change its own rights, so prefer another account of the server.
-        managers.sort(key=lambda a: (a.token_id == token_id, not a.active))
+        managers = core.managers_for(host, token_id)
 
         def loaded(result, error, manager):
             if error:
