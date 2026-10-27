@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from authswitch import core, discovery, leaks, mcp, rootshell, update
+from authswitch import core, discovery, leaks, mcp, rootshell, sshaccess, update
 
 TOKEN = "root@pam!automation"
 SECRET = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0"
@@ -426,6 +426,74 @@ class RootShellTest(unittest.TestCase):
         frame = rootshell._frame(b"x" * 300)
         self.assertTrue(frame[1] & 0x80)
         self.assertEqual(rootshell._read_frame(_FakeSocket.reader(frame)), (0x2, b"x" * 300))
+
+
+class SshAccessTest(unittest.TestCase):
+    """Runs against a temporary home folder; the real ~/.ssh is never touched."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.home = Path(self.dir.name)
+        (self.home / ".ssh").mkdir(mode=0o700)
+        (self.home / ".ssh" / "config").write_text("Host other\n    HostName other.example.com\n")
+        self.keys, self.secrets = {}, {}
+        patches = [
+            mock.patch.dict(os.environ, {"HOME": self.dir.name, "XDG_CONFIG_HOME": self.dir.name}),
+            mock.patch.object(core, "store_secret", lambda h, t, s: self.secrets.__setitem__((h, t), s)),
+            mock.patch.object(core, "lookup_secret", lambda h, t: self.secrets.get((h, t), "")),
+            mock.patch.object(core, "validate", return_value=core.Profile(valid=True)),
+            mock.patch.object(sshaccess, "_store_key", lambda h, k: self.keys.__setitem__(h, k)),
+            mock.patch.object(sshaccess, "_lookup_key", lambda h: self.keys.get(h, "")),
+            mock.patch.object(sshaccess, "_clear_key", lambda h: self.keys.pop(h, None)),
+            mock.patch.object(rootshell, "sign_in", return_value={"ticket": "T", "csrf": "C"}),
+        ]
+        for patcher in patches:
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.host = core.add_account("pve.example.com", TOKEN, SECRET).host
+
+    def test_set_up_switch_and_remove(self):
+        output = "HOSTKEY ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleHostKey\nHOSTKEY ssh-rsa AAAAB3NzaC1yc2EAAAADAQABExample\n"
+        with mock.patch.object(rootshell, "run_script", return_value=(0, output)) as run:
+            sshaccess.set_up(self.host, "pve", "pve", "pw")
+        script = run.call_args.args[3]
+        public = sshaccess._state(self.host)["public"]
+        self.assertIn(public, script)
+        self.assertTrue(public.startswith("ssh-ed25519 ") and public.endswith("auth-switch@pve.example.com:8006"))
+        self.assertIn("BEGIN OPENSSH PRIVATE KEY", self.keys[self.host])
+        key_file = sshaccess._key_file(self.host)
+        self.assertEqual(key_file.stat().st_mode & 0o777, 0o600)
+        config = (self.home / ".ssh" / "config").read_text()
+        self.assertTrue(config.startswith(f"Include {sshaccess._include_file()}"))
+        self.assertIn("Host other", config)
+        include = sshaccess._include_file().read_text()
+        self.assertIn("Host pve\n    HostName pve.example.com\n    User root", include)
+        known = (self.home / ".ssh" / "known_hosts").read_text()
+        self.assertIn("pve.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleHostKey", known)
+        self.assertEqual(sshaccess.status(self.host), {"set_up": True, "enabled": True, "alias": "pve"})
+
+        sshaccess.disable(self.host)
+        self.assertFalse(key_file.exists())
+        self.assertNotIn("Host pve", sshaccess._include_file().read_text())
+        self.assertIn(self.host, self.keys)
+        sshaccess.enable(self.host)
+        self.assertTrue(key_file.exists())
+        self.assertEqual((self.home / ".ssh" / "config").read_text().count("Include"), 1)
+
+        with mock.patch.object(sshaccess.subprocess, "run") as ssh:
+            sshaccess.remove(self.host)
+        self.assertIn(public.split()[1], ssh.call_args.kwargs["input"])
+        self.assertFalse(key_file.exists())
+        self.assertNotIn(self.host, self.keys)
+        self.assertEqual(sshaccess.status(self.host), {"set_up": False, "enabled": False, "alias": ""})
+
+    def test_failed_install_leaves_nothing_behind(self):
+        with mock.patch.object(rootshell, "run_script", return_value=(1, "permission denied")):
+            with self.assertRaises(core.AuthError):
+                sshaccess.set_up(self.host, "pve", "pve", "pw")
+        self.assertEqual(self.keys, {})
+        self.assertFalse(sshaccess._own_dir().exists())
 
 
 class DiscoveryTest(unittest.TestCase):

@@ -36,6 +36,7 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
   dauerhaft entfernen
 - Zeigt ausstehende Updates pro Knoten, upgradet einen Knoten und stellt die
   Standardsprache der Weboberfläche ein
+- Richtet SSH als root für dein eigenes Terminal ein und schaltet es ein und aus
 - Startet andere Werkzeuge mit dem aktiven Konto: `auth-switch exec -- terraform plan`
 - MCP-Server mit Lese- und Schreibzugriff auf die Proxmox-VE-API
 - Leak-Prüfung: findet Token-Geheimnisse, Serveradressen, deine echte
@@ -52,14 +53,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.6_all.deb
+sudo apt install ./auth-switch_0.3.7_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.6-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.7-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -170,6 +171,29 @@ braucht, die nicht unbeaufsichtigt laufen sollte.
 
 Zum Lesen braucht es `Sys.Audit`, zum Ändern der Sprache und für die
 Update-Suche `Sys.Modify`, meist mit einem Token von `root@pam`.
+
+## SSH für dein eigenes Terminal
+
+**SSH für mein Terminal …** im Menü eines Kontos richtet `ssh NAME` als root für
+den Server ein, etwa um in einem Terminal zu arbeiten, das dir besser liegt als
+die Web-Konsole. Auth-Switch erzeugt einen Schlüssel nur für diesen Server, lässt
+root auf dem Server ihm über die Root-Konsole vertrauen (mit dem root-Passwort,
+einmal verwendet) und übernimmt den SSH-Host-Key des Servers über die bereits
+bestätigte HTTPS-Verbindung – kein blindes „yes“ für einen unbekannten Host. Es
+ergänzt eine `Include`-Zeile oben in `~/.ssh/config`; die eigenen Einträge liegen
+in `~/.ssh/auth-switch/`.
+
+Der private Schlüssel liegt im System-Schlüsselbund. **Aus** löscht sofort die
+Kopie, die ssh nutzt, und ihren Eintrag, sodass ssh sich damit nicht mehr
+anmelden kann; Schlüsselbund und Server behalten den Schlüssel, daher geht
+**An** wieder ohne Passwort. **Entfernen** trägt den Schlüssel vom Server aus und
+löscht ihn aus dem Schlüsselbund. Ausschalten sperrt nie den Schlüsselbund
+selbst.
+
+Solange der Zugang an ist, kann sich jedes Programm unter deinem Benutzer –
+auch ein KI-Assistent mit Shell-Zugriff – ohne Rückfrage als root anmelden; das
+Fenster sagt das in einem hervorgehobenen Hinweis. Der MCP-Server hat kein Tool
+dafür und erfährt nichts davon.
 
 ## So werden Geheimnisse geschützt
 

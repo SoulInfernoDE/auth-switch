@@ -35,6 +35,7 @@ Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch)
   subscription" notice for good
 - Shows pending updates per node, upgrades a node and sets the default language
   of the web interface
+- Sets up SSH as root for your own terminal and switches it on and off
 - Runs other tools with the active account: `auth-switch exec -- terraform plan`
 - MCP server with read and write access to the Proxmox VE API
 - Leak check: finds token secrets, server addresses, your real e-mail address
@@ -51,14 +52,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.3.6_all.deb
+sudo apt install ./auth-switch_0.3.7_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.6-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.3.7-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -163,6 +164,26 @@ needs preparation that should not run unattended.
 
 Reading needs `Sys.Audit`, changing the language and checking for updates
 `Sys.Modify`, usually with a token of `root@pam`.
+
+## SSH for your own terminal
+
+**SSH for my terminal…** in an account's menu sets up `ssh NAME` as root for the
+server, for example to work in a terminal that suits you better than the web
+console. Auth-Switch creates a key for this server only, lets root on the server
+trust it through the root console (with the root password, used once), and takes
+the server's SSH host key over the HTTPS connection you already confirmed, so
+there is no blind "yes" for an unknown host. It adds one `Include` line at the
+top of `~/.ssh/config`; its own entries live in `~/.ssh/auth-switch/`.
+
+The private key is kept in the system keyring. **Off** deletes the copy ssh uses
+and its entry right away, so ssh can no longer log in with it; the keyring and
+the server keep the key, so **on** works again without the password. **Remove**
+takes the key off the server and out of the keyring. Switching off never locks
+the keyring itself.
+
+While access is on, any program running as you – including an AI assistant
+with shell access – can log in as root without asking; the window says so in a
+highlighted note. The MCP server has no tool for it and is not told about it.
 
 ## How secrets are protected
 

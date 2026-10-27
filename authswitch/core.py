@@ -103,6 +103,7 @@ def _load() -> dict[str, dict]:
                     for token, paths in (entry.get("blocked") or {}).items()
                     if isinstance(paths, list)
                 } if isinstance(entry.get("blocked"), dict) else {},
+                "ssh": entry.get("ssh") if isinstance(entry.get("ssh"), dict) else {},
             }
     return hosts
 

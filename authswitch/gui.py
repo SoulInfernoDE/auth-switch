@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import sys
 import threading
@@ -13,7 +14,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import __version__, core, discovery, rootshell, sound, update  # noqa: E402
+from . import __version__, core, discovery, rootshell, sound, sshaccess, update  # noqa: E402
 from .i18n import _  # noqa: E402
 
 APP_ID = ICON_NAME = "dev.authswitch.AuthSwitch"
@@ -86,6 +87,7 @@ class Window(Adw.ApplicationWindow):
             ("permissions", lambda _a, p: self.edit_permissions(*p.unpack()), "(ss)"),
             ("repository", lambda _a, p: self.open_subscription(*p.unpack()), "(ss)"),
             ("maintenance", lambda _a, p: self.open_maintenance(*p.unpack()), "(ss)"),
+            ("ssh", lambda _a, p: self.open_ssh(*p.unpack()), "(ss)"),
             ("remove", self.on_remove_action, "(ss)"),
         ):
             action = Gio.SimpleAction.new(name, GLib.VariantType.new(parameter))
@@ -221,6 +223,7 @@ class Window(Adw.ApplicationWindow):
             (_("Permissions…"), "win.permissions", target),
             (_("Subscription and repository…"), "win.repository", target),
             (_("Updates and language…"), "win.maintenance", target),
+            (_("SSH for my terminal…"), "win.ssh", target),
             (_("Open web interface"), "win.web", GLib.Variant("s", account.host)),
             (_("Enter secret again"), "win.again", target),
             (_("Remove"), "win.remove", target),
@@ -860,6 +863,135 @@ class Window(Adw.ApplicationWindow):
                     ).format(node=node or _("the node")),
                 )
                 watch(300)
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    # --- SSH for the user's own terminal --------------------------------------
+
+    def ssh_warning(self) -> Gtk.Label:
+        label = Gtk.Label(
+            label=_(
+                "While it is on, any program running as you – including an AI assistant with shell access – can log "
+                "in as root without asking. The MCP server of Auth-Switch does not use it and knows nothing about it."
+            ),
+            wrap=True, xalign=0, max_width_chars=52,
+        )
+        label.add_css_class("warning")
+        return label
+
+    def open_ssh(self, host: str, token_id: str) -> None:
+        state = sshaccess.status(host)
+        if state["set_up"]:
+            self.show_ssh_switch(host, state)
+            return
+        manager = core.managers_for(host, token_id)[0]
+        run_async(lambda: rootshell.local_node(host, manager), lambda node, error: self.ask_ssh_setup(host, node or ""))
+
+    def ask_ssh_setup(self, host: str, node: str) -> None:
+        alias = Adw.EntryRow(title=_("Name for ssh, e.g. ssh {name}").format(name=node or "pve"), text=node or "pve")
+        password = Adw.PasswordEntryRow(title=_("Password of root@pam (not stored)"))
+        code = Adw.EntryRow(title=_("One-time code (two-factor authentication)"), visible=False)
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.set_size_request(440, -1)
+        for row in (alias, password, code):
+            rows.append(row)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.append(self.ssh_warning())
+        box.append(rows)
+        dialog = Adw.MessageDialog(
+            transient_for=self,
+            heading=_("SSH for my terminal"),
+            body=_(
+                "Auth-Switch creates a key only for {host}, lets root on the server trust it and takes the server's "
+                "host key over the connection you already confirmed. Afterwards \"ssh NAME\" logs you in as root. "
+                "The key stays in the system keyring; switching off removes it from ssh, switching on brings it back."
+            ).format(host=host),
+            extra_child=box,
+        )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("setup", _("Set up"))
+        dialog.set_response_appearance("setup", Adw.ResponseAppearance.SUGGESTED)
+
+        def update(*_args):
+            ok = bool(re.fullmatch(r"[\w.-]+", alias.get_text().strip())) and bool(password.get_text())
+            dialog.set_response_enabled("setup", ok)
+
+        for row in (alias, password):
+            row.connect("changed", update)
+        update()
+
+        def finished(_result, error):
+            if isinstance(error, rootshell.TwoFactorRequired):
+                code.set_visible(True)
+                dialog.present()
+                return
+            if error:
+                self.explain(_("SSH could not be set up"), str(error))
+                return
+            self.toast(_("SSH ready: ssh {alias}").format(alias=alias.get_text().strip()), "success")
+
+        def on_response(_dialog, response):
+            secret, otp = password.get_text(), code.get_text().strip()
+            password.set_text("")
+            if response == "setup":
+                dialog.set_visible(False)
+                name = alias.get_text().strip()
+                run_async(lambda: sshaccess.set_up(host, node, name, secret, otp), finished)
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    def show_ssh_switch(self, host: str, state: dict) -> None:
+        switch = Adw.SwitchRow(title=_("SSH access as root"), subtitle=f"ssh {state['alias']}", active=state["enabled"])
+        copy = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Copy command"))
+        copy.add_css_class("flat")
+        copy.connect("clicked", lambda *_a: self.copy(f"ssh {state['alias']}"))
+        switch.add_suffix(copy)
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.set_size_request(440, -1)
+        rows.append(switch)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        warning = self.ssh_warning()
+        warning.set_visible(state["enabled"])
+        box.append(warning)
+        box.append(rows)
+        dialog = Adw.MessageDialog(
+            transient_for=self,
+            heading=_("SSH for my terminal"),
+            body=_(
+                "Off removes the key from ssh at once; it stays in the system keyring and on the server, so switching on "
+                "again needs nothing else. Remove takes it off the server and out of the keyring."
+            ),
+            extra_child=box,
+        )
+        dialog.add_response("remove", _("Remove"))
+        dialog.set_response_appearance("remove", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.add_response("close", _("Close"))
+
+        def toggled(*_args):
+            warning.set_visible(switch.get_active())
+            try:
+                (sshaccess.enable if switch.get_active() else sshaccess.disable)(host)
+            except core.AuthError as error:
+                self.explain(_("SSH could not be changed"), str(error))
+                return
+            text = _("SSH to {host} on") if switch.get_active() else _("SSH to {host} off")
+            self.toast(text.format(host=host), "switch" if switch.get_active() else "signout")
+
+        switch.connect("notify::active", toggled)
+
+        def removed(_result, error):
+            if error:
+                self.explain(_("SSH could not be changed"), str(error))
+            else:
+                self.toast(_("SSH access to {host} removed").format(host=host), "signout")
+
+        def on_response(_dialog, response):
+            if response == "remove":
+                run_async(lambda: sshaccess.remove(host), removed)
 
         dialog.connect("response", on_response)
         dialog.present()
