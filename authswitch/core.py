@@ -796,15 +796,22 @@ def notice_status(host: str) -> str:
     return NOTICE_REMOVED
 
 
+def ssh_command(host: str, timeout: int = 10) -> list[str]:
+    """ssh as root without any question; uses the key of "SSH for my terminal" while it is switched on."""
+    from . import sshaccess
+
+    command = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}"]
+    if sshaccess.status(host)["enabled"]:
+        command += ["-i", str(sshaccess._key_file(host)), "-o", "IdentitiesOnly=yes"]
+    return command + [f"root@{split_host(host)[0]}"]
+
+
 def ssh_ready(host: str) -> bool:
-    """Whether SSH as root works without any question, i.e. with a known host key and the user's own key."""
+    """Whether SSH as root works without any question, i.e. with a known host key and a usable key."""
     if not shutil.which("ssh"):
         return False
     try:
-        return subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", f"root@{split_host(host)[0]}", "true"],
-            capture_output=True, timeout=15,
-        ).returncode == 0
+        return subprocess.run(ssh_command(host, 8) + ["true"], capture_output=True, timeout=15).returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
 
@@ -832,7 +839,7 @@ def run_as_root(host: str, script: str, timeout: int) -> str:
     name = split_host(host)[0]
     try:
         proc = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", f"root@{name}", "sh", "-s"],
+            ssh_command(host) + ["sh", "-s"],
             input=script, capture_output=True, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired:

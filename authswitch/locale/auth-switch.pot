@@ -246,26 +246,26 @@ msgstr ""
 msgid "No node of {host} could be read."
 msgstr ""
 
-#: authswitch/core.py:831 authswitch/sshaccess.py:153
+#: authswitch/core.py:838 authswitch/sshaccess.py:153
 msgid "ssh is not installed."
 msgstr ""
 
-#: authswitch/core.py:839
+#: authswitch/core.py:846
 #, python-brace-format
 msgid "SSH to {host} timed out."
 msgstr ""
 
-#: authswitch/core.py:842
+#: authswitch/core.py:849
 #, python-brace-format
 msgid "SSH as root@{host} failed: {detail}"
 msgstr ""
 
-#: authswitch/core.py:879
+#: authswitch/core.py:886
 #, python-brace-format
 msgid "Task on {node} failed: {status}"
 msgstr ""
 
-#: authswitch/core.py:882
+#: authswitch/core.py:889
 #, python-brace-format
 msgid "Task on {node} did not finish in time."
 msgstr ""
@@ -424,7 +424,7 @@ msgstr ""
 
 #: authswitch/gui.py:320 authswitch/gui.py:498 authswitch/gui.py:587
 #: authswitch/gui.py:650 authswitch/gui.py:849 authswitch/gui.py:943
-#: authswitch/gui.py:1134
+#: authswitch/gui.py:1147
 msgid "Cancel"
 msgstr ""
 
@@ -948,86 +948,90 @@ msgstr ""
 msgid "Major upgrade guide"
 msgstr ""
 
-#: authswitch/gui.py:1129
+#: authswitch/gui.py:1132
+msgid "Checking SSH access…"
+msgstr ""
+
+#: authswitch/gui.py:1142
 #, python-brace-format
 msgid ""
 "Installs {count} updates on {node} with apt dist-upgrade. Running guests "
 "keep running; a new kernel only takes effect after a reboot. The upgrade "
-"console of the web interface shows every step, SSH runs it unattended as "
-"root with your existing keys."
+"console of the web interface shows every step; SSH runs it unattended as "
+"root, with the key of \"SSH for my terminal\" while it is on."
 msgstr ""
 
-#: authswitch/gui.py:1133
+#: authswitch/gui.py:1146
 #, python-brace-format
 msgid "Upgrade {node}?"
 msgstr ""
 
-#: authswitch/gui.py:1135
+#: authswitch/gui.py:1148
 msgid "Open upgrade console"
 msgstr ""
 
-#: authswitch/gui.py:1137
+#: authswitch/gui.py:1150
 msgid "Upgrade over SSH"
 msgstr ""
 
-#: authswitch/gui.py:1142
+#: authswitch/gui.py:1155
 msgid "Upgrade failed"
 msgstr ""
 
-#: authswitch/gui.py:1142
+#: authswitch/gui.py:1155
 msgid "Use the upgrade console instead."
 msgstr ""
 
-#: authswitch/gui.py:1144
+#: authswitch/gui.py:1157
 #, python-brace-format
 msgid "{node} is up to date"
 msgstr ""
 
-#: authswitch/gui.py:1146
+#: authswitch/gui.py:1159
 msgid "Reboot recommended"
 msgstr ""
 
-#: authswitch/gui.py:1146
+#: authswitch/gui.py:1159
 #, python-brace-format
 msgid "{node} has a new kernel; it takes effect after a reboot."
 msgstr ""
 
-#: authswitch/gui.py:1153
+#: authswitch/gui.py:1166
 #, python-brace-format
 msgid "Upgrading {node}… this can take a few minutes"
 msgstr ""
 
-#: authswitch/gui.py:1162
+#: authswitch/gui.py:1175
 msgid "Options"
 msgstr ""
 
-#: authswitch/gui.py:1165
+#: authswitch/gui.py:1178
 msgid "MCP server"
 msgstr ""
 
-#: authswitch/gui.py:1166
+#: authswitch/gui.py:1179
 msgid ""
 "Lets AI assistants with MCP support use your Proxmox VE accounts; copy the "
 "entry for their configuration"
 msgstr ""
 
-#: authswitch/gui.py:1168
+#: authswitch/gui.py:1181
 msgid "Copy entry"
 msgstr ""
 
-#: authswitch/gui.py:1173
+#: authswitch/gui.py:1186
 msgid "Sound effects"
 msgstr ""
 
-#: authswitch/gui.py:1178
+#: authswitch/gui.py:1191
 msgid "Check for updates on start"
 msgstr ""
 
-#: authswitch/gui.py:1179
+#: authswitch/gui.py:1192
 msgid "Asks GitHub for the latest release, without any account"
 msgstr ""
 
-#: authswitch/gui.py:1190
+#: authswitch/gui.py:1203
 #, python-brace-format
 msgid "Auth-Switch {version} is available"
 msgstr ""

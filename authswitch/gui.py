@@ -1074,7 +1074,7 @@ class Window(Adw.ApplicationWindow):
         for node in nodes:
             row = Adw.ActionRow(title=node["node"], use_markup=False)
             button = Gtk.Button(label=_("Upgrade"), valign=Gtk.Align.CENTER)
-            button.connect("clicked", lambda _b, n=node: self.confirm_upgrade(host, manager, n))
+            button.connect("clicked", lambda _b, n=node: self.prepare_upgrade(host, manager, n))
             row.add_suffix(button)
             rows.append(row)
             node_rows.append((row, button))
@@ -1124,16 +1124,29 @@ class Window(Adw.ApplicationWindow):
         dialog.connect("response", on_response)
         dialog.present()
 
-    def confirm_upgrade(self, host: str, manager: core.Account, node: dict) -> None:
+    def prepare_upgrade(self, host: str, manager: core.Account, node: dict) -> None:
+        """SSH is only offered when it really works, so the check comes first."""
+        if not node["local"]:
+            self.confirm_upgrade(host, manager, node, False)
+            return
+        done_loading = self.busy(_("Checking SSH access…"))
+
+        def checked(ready, _error):
+            done_loading()
+            self.confirm_upgrade(host, manager, node, bool(ready))
+
+        run_async(lambda: core.ssh_ready(host), checked)
+
+    def confirm_upgrade(self, host: str, manager: core.Account, node: dict, ssh: bool) -> None:
         body = _(
             "Installs {count} updates on {node} with apt dist-upgrade. Running guests keep running; a new kernel only "
-            "takes effect after a reboot. The upgrade console of the web interface shows every step, SSH runs it "
-            "unattended as root with your existing keys."
+            "takes effect after a reboot. The upgrade console of the web interface shows every step; SSH runs it "
+            "unattended as root, with the key of \"SSH for my terminal\" while it is on."
         ).format(count=node["updates"], node=node["node"])
         dialog = Adw.MessageDialog(transient_for=self, heading=_("Upgrade {node}?").format(node=node["node"]), body=body)
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("console", _("Open upgrade console"))
-        if node["local"] and shutil.which("ssh"):
+        if ssh:
             dialog.add_response("ssh", _("Upgrade over SSH"))
             dialog.set_response_appearance("ssh", Adw.ResponseAppearance.SUGGESTED)
 

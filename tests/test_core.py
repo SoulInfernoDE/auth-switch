@@ -504,6 +504,22 @@ class SshAccessTest(unittest.TestCase):
         self.assertNotIn(self.host, self.keys)
         self.assertEqual(sshaccess.status(self.host), {"set_up": False, "enabled": False, "alias": ""})
 
+    def test_app_uses_the_key_while_access_is_on(self):
+        output = "HOSTKEY ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleHostKey\n"
+        plain = core.ssh_command(self.host)
+        self.assertNotIn("-i", plain)
+        with mock.patch.object(rootshell, "run_script", return_value=(0, output)):
+            sshaccess.set_up(self.host, "pve", "pve", "pw")
+        command = core.ssh_command(self.host)
+        self.assertEqual(command[-1], "root@pve.example.com")
+        self.assertIn(str(sshaccess._key_file(self.host)), command)
+        self.assertIn("IdentitiesOnly=yes", command)
+        with mock.patch.object(core.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="done", stderr="")) as run:
+            core.run_as_root(self.host, "echo hi\n", 60)
+        self.assertIn(str(sshaccess._key_file(self.host)), run.call_args.args[0])
+        sshaccess.disable(self.host)
+        self.assertNotIn("-i", core.ssh_command(self.host))
+
     def test_failed_install_leaves_nothing_behind(self):
         with mock.patch.object(rootshell, "run_script", return_value=(1, "permission denied")):
             with self.assertRaises(core.AuthError):
