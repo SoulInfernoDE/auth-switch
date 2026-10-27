@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Auth-Switch
+GenericName=Proxmox VE Account Switcher
+GenericName[de]=Proxmox-VE-Kontowechsler
+Comment=Switch between Proxmox VE accounts
+Comment[de]=Zwischen Proxmox-VE-Konten wechseln
+Exec=auth-switch
+Icon=dev.authswitch.AuthSwitch
+Terminal=false
+Categories=System;GTK;
+Keywords=proxmox;pve;token;account;
+StartupWMClass=dev.authswitch.AuthSwitch

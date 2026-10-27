@@ -1,0 +1,640 @@
+# German translation of auth-switch.
+msgid ""
+msgstr ""
+"Project-Id-Version: auth-switch\n"
+"Report-Msgid-Bugs-To: https://github.com/SoulInfernoDE/auth-switch/issues\n"
+"PO-Revision-Date: 2026-10-13 08:00+0200\n"
+"Last-Translator: auth-switch contributors\n"
+"Language-Team: German\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: authswitch/__main__.py:15
+msgid "Switch between Proxmox VE accounts."
+msgstr "Zwischen Proxmox-VE-Konten wechseln."
+
+#: authswitch/__main__.py:18
+msgid "open the window (default)"
+msgstr "Fenster öffnen (Standard)"
+
+#: authswitch/__main__.py:19
+msgid "print the accounts as JSON"
+msgstr "Konten als JSON ausgeben"
+
+#: authswitch/__main__.py:20
+msgid "activate an account"
+msgstr "ein Konto aktivieren"
+
+#: authswitch/__main__.py:23
+msgid "run a command with the active account in its environment"
+msgstr "einen Befehl mit dem aktiven Konto in seiner Umgebung ausführen"
+
+#: authswitch/__main__.py:26
+msgid "check files or a git working copy for private data"
+msgstr "Dateien oder eine Git-Arbeitskopie auf private Daten prüfen"
+
+#: authswitch/__main__.py:28
+msgid "check what the next push of this working copy would publish"
+msgstr "prüfen, was der nächste Push dieser Arbeitskopie veröffentlichen würde"
+
+#: authswitch/__main__.py:29
+msgid "run the MCP server on stdio"
+msgstr "MCP-Server über stdio starten"
+
+#: authswitch/__main__.py:40
+msgid "exec needs a command, for example: auth-switch exec -- terraform plan"
+msgstr ""
+"exec braucht einen Befehl, zum Beispiel: auth-switch exec -- terraform plan"
+
+#: authswitch/__main__.py:50
+#, python-brace-format
+msgid "auth-switch: {error}"
+msgstr "auth-switch: {error}"
+
+#: authswitch/__main__.py:68
+msgid "No private data found."
+msgstr "Keine privaten Daten gefunden."
+
+#: authswitch/__main__.py:68
+#, python-brace-format
+msgid "{count} finding(s)."
+msgstr "{count} Fund(e)."
+
+#: authswitch/core.py:152
+msgid ""
+"No system keyring is available (libsecret is missing), so the secret cannot "
+"be stored safely."
+msgstr ""
+"Kein System-Schlüsselbund verfügbar (libsecret fehlt), das Geheimnis kann "
+"daher nicht sicher gespeichert werden."
+
+#: authswitch/core.py:164
+#, python-brace-format
+msgid "The system keyring refused the request: {detail}"
+msgstr "Der System-Schlüsselbund hat die Anfrage abgelehnt: {detail}"
+
+#: authswitch/core.py:175
+msgid "The secret could not be stored in the system keyring."
+msgstr "Das Geheimnis konnte nicht im System-Schlüsselbund gespeichert werden."
+
+#: authswitch/core.py:206 authswitch/core.py:220 authswitch/core.py:309
+#, python-brace-format
+msgid "{host} cannot be reached: {detail}"
+msgstr "{host} ist nicht erreichbar: {detail}"
+
+#: authswitch/core.py:246
+#, python-brace-format
+msgid ""
+"The certificate of {host} is not the one you confirmed. Nothing was sent. If "
+"the server got a new certificate, add the account again to confirm it."
+msgstr ""
+"Das Zertifikat von {host} ist nicht das, das du bestätigt hast. Es wurde "
+"nichts gesendet. Falls der Server ein neues Zertifikat hat, füge das Konto "
+"erneut hinzu, um es zu bestätigen."
+
+#: authswitch/core.py:269
+msgid "The path must start with a single / and stay below /api2/json."
+msgstr ""
+"Der Pfad muss mit genau einem / beginnen und unterhalb von /api2/json "
+"bleiben."
+
+#: authswitch/core.py:271
+msgid "Endpoints that issue tickets or credentials are not available here."
+msgstr ""
+"Endpunkte, die Tickets oder Zugangsdaten ausstellen, stehen hier nicht zur "
+"Verfügung."
+
+#: authswitch/core.py:286 authswitch/mcp.py:174
+#, python-brace-format
+msgid "Unsupported method: {method}"
+msgstr "Nicht unterstützte Methode: {method}"
+
+#: authswitch/core.py:306
+#, python-brace-format
+msgid ""
+"The certificate of {host} is not trusted; add the account again to confirm "
+"it."
+msgstr ""
+"Dem Zertifikat von {host} wird nicht vertraut; füge das Konto erneut hinzu, "
+"um es zu bestätigen."
+
+#: authswitch/core.py:347
+msgid ""
+"The token ID must look like user@realm!name, for example root@pam!auth-"
+"switch."
+msgstr ""
+"Die Token-ID muss die Form benutzer@realm!name haben, zum Beispiel root@pam!"
+"auth-switch."
+
+#: authswitch/core.py:350
+#, python-brace-format
+msgid "{host} rejected the token."
+msgstr "{host} hat das Token abgelehnt."
+
+#: authswitch/core.py:352
+#, python-brace-format
+msgid "{host} did not answer like a Proxmox VE server."
+msgstr "{host} hat nicht wie ein Proxmox-VE-Server geantwortet."
+
+#: authswitch/core.py:375
+msgid "none"
+msgstr "keine"
+
+#: authswitch/core.py:376
+#, python-brace-format
+msgid "No account '{user}'. Known accounts: {known}"
+msgstr "Kein Konto '{user}'. Bekannte Konten: {known}"
+
+#: authswitch/core.py:378
+#, python-brace-format
+msgid "'{user}' is ambiguous; pass the full token ID and a hostname."
+msgstr ""
+"'{user}' ist nicht eindeutig; bitte vollständige Token-ID und Hostnamen "
+"angeben."
+
+#: authswitch/core.py:407
+msgid "No Proxmox VE account is set up for this server."
+msgstr "Für diesen Server ist kein Proxmox-VE-Konto eingerichtet."
+
+#: authswitch/core.py:409
+msgid "Several Proxmox VE servers are known; pass a hostname."
+msgstr "Mehrere Proxmox-VE-Server sind bekannt; bitte Hostnamen angeben."
+
+#: authswitch/core.py:416
+#, python-brace-format
+msgid "No secret for {token} in the system keyring; add the account again."
+msgstr ""
+"Kein Geheimnis für {token} im System-Schlüsselbund; bitte Konto erneut "
+"hinzufügen."
+
+#: authswitch/gui.py:45 authswitch/gui.py:149 authswitch/gui.py:309
+msgid "Add account"
+msgstr "Konto hinzufügen"
+
+#: authswitch/gui.py:48
+msgid "Refresh"
+msgstr "Aktualisieren"
+
+#: authswitch/gui.py:50
+msgid "About"
+msgstr "Info"
+
+#: authswitch/gui.py:65
+msgid "Show"
+msgstr "Anzeigen"
+
+#: authswitch/gui.py:100
+msgid "Close"
+msgstr "Schließen"
+
+#: authswitch/gui.py:107
+msgid "Copied to clipboard"
+msgstr "In die Zwischenablage kopiert"
+
+#: authswitch/gui.py:119
+msgid "Switch between Proxmox VE accounts"
+msgstr "Zwischen Proxmox-VE-Konten wechseln"
+
+#: authswitch/gui.py:147
+msgid "No accounts yet"
+msgstr "Noch keine Konten"
+
+#: authswitch/gui.py:148
+msgid "Add an API token of your Proxmox VE server to get started."
+msgstr "Füge ein API-Token deines Proxmox-VE-Servers hinzu, um loszulegen."
+
+#: authswitch/gui.py:172
+msgid "Certificate confirmed by you"
+msgstr "Zertifikat von dir bestätigt"
+
+#: authswitch/gui.py:172
+msgid "Certificate trusted by the system"
+msgstr "Zertifikat vom System als vertrauenswürdig eingestuft"
+
+#: authswitch/gui.py:174 authswitch/gui.py:199 authswitch/gui.py:298
+msgid "Open web interface"
+msgstr "Weboberfläche öffnen"
+
+#: authswitch/gui.py:190
+msgid "Switch"
+msgstr "Wechseln"
+
+#: authswitch/gui.py:200
+msgid "Enter secret again"
+msgstr "Geheimnis erneut eingeben"
+
+#: authswitch/gui.py:201 authswitch/gui.py:274
+msgid "Remove"
+msgstr "Entfernen"
+
+#: authswitch/gui.py:223
+msgid "Checking token…"
+msgstr "Token wird geprüft …"
+
+#: authswitch/gui.py:229
+msgid "Token invalid – enter the secret again"
+msgstr "Token ungültig – Geheimnis erneut eingeben"
+
+#: authswitch/gui.py:231
+msgid "Enter again"
+msgstr "Neu eingeben"
+
+#: authswitch/gui.py:234
+msgid "Server not reachable"
+msgstr "Server nicht erreichbar"
+
+#: authswitch/gui.py:236
+#, python-brace-format
+msgid "Proxmox VE {version}"
+msgstr "Proxmox VE {version}"
+
+#: authswitch/gui.py:238
+msgid "Active"
+msgstr "Aktiv"
+
+#: authswitch/gui.py:253
+msgid "Switching failed"
+msgstr "Wechsel fehlgeschlagen"
+
+#: authswitch/gui.py:255
+#, python-brace-format
+msgid "Switched to {token}"
+msgstr "Zu {token} gewechselt"
+
+#: authswitch/gui.py:267
+#, python-brace-format
+msgid "Remove {token}?"
+msgstr "{token} entfernen?"
+
+#: authswitch/gui.py:269
+#, python-brace-format
+msgid ""
+"The secret is deleted from the system keyring. The token itself stays valid "
+"on {host}; revoke it in the web interface if you no longer need it."
+msgstr ""
+"Das Geheimnis wird aus dem System-Schlüsselbund gelöscht. Das Token selbst "
+"bleibt auf {host} gültig; widerrufe es in der Weboberfläche, wenn du es "
+"nicht mehr brauchst."
+
+#: authswitch/gui.py:273 authswitch/gui.py:316 authswitch/gui.py:378
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#: authswitch/gui.py:279
+msgid "Removing failed"
+msgstr "Entfernen fehlgeschlagen"
+
+#: authswitch/gui.py:281
+#, python-brace-format
+msgid "Removed {token}"
+msgstr "{token} entfernt"
+
+#: authswitch/gui.py:295
+msgid "Server address, e.g. pve.example.com"
+msgstr "Serveradresse, z. B. pve.example.com"
+
+#: authswitch/gui.py:296
+msgid "API token ID, e.g. root@pam!auth-switch"
+msgstr "API-Token-ID, z. B. root@pam!auth-switch"
+
+#: authswitch/gui.py:297
+msgid "Secret"
+msgstr "Geheimnis"
+
+#: authswitch/gui.py:311
+msgid ""
+"Create an API token in the web interface under Datacenter → Permissions → "
+"API Tokens and copy its ID and secret. The secret is kept in the system "
+"keyring only."
+msgstr ""
+"Erstelle in der Weboberfläche unter Rechenzentrum → Berechtigungen → API-"
+"Token ein Token und kopiere ID und Geheimnis. Das Geheimnis liegt "
+"ausschließlich im System-Schlüsselbund."
+
+#: authswitch/gui.py:317
+msgid "Add"
+msgstr "Hinzufügen"
+
+#: authswitch/gui.py:341 authswitch/gui.py:351
+msgid "Adding failed"
+msgstr "Hinzufügen fehlgeschlagen"
+
+#: authswitch/gui.py:343
+#, python-brace-format
+msgid "Added {token}"
+msgstr "{token} hinzugefügt"
+
+#: authswitch/gui.py:367
+#, python-brace-format
+msgid ""
+"The certificate of {host} is not signed by an authority your system trusts, "
+"which is normal for Proxmox VE. Compare this SHA-256 fingerprint with the "
+"one shown under Node → System → Certificates, or by 'pvenode cert info' on "
+"the server. Only continue if they match."
+msgstr ""
+"Das Zertifikat von {host} ist nicht von einer Stelle signiert, der dein "
+"System vertraut – bei Proxmox VE ist das normal. Vergleiche diesen SHA-256-"
+"Fingerabdruck mit dem unter Knoten → System → Zertifikate oder mit der "
+"Ausgabe von 'pvenode cert info' auf dem Server. Fahre nur fort, wenn sie "
+"übereinstimmen."
+
+#: authswitch/gui.py:372
+msgid "Warning: this is not the certificate you confirmed before."
+msgstr "Achtung: Das ist nicht das Zertifikat, das du vorher bestätigt hast."
+
+#: authswitch/gui.py:376
+msgid "Check the server certificate"
+msgstr "Serverzertifikat prüfen"
+
+#: authswitch/gui.py:379
+msgid "Fingerprint matches"
+msgstr "Fingerabdruck stimmt"
+
+#: authswitch/gui.py:392
+msgid "Options"
+msgstr "Optionen"
+
+#: authswitch/gui.py:395
+msgid "MCP server"
+msgstr "MCP-Server"
+
+#: authswitch/gui.py:396
+msgid ""
+"Lets AI assistants with MCP support use your Proxmox VE accounts; copy the "
+"entry for their configuration"
+msgstr ""
+"Lässt KI-Assistenten mit MCP-Unterstützung deine Proxmox-VE-Konten nutzen; "
+"kopiere den Eintrag für ihre Konfiguration"
+
+#: authswitch/gui.py:398
+msgid "Copy entry"
+msgstr "Eintrag kopieren"
+
+#: authswitch/gui.py:403
+msgid "Sound effects"
+msgstr "Soundeffekte"
+
+#: authswitch/gui.py:408
+msgid "Check for updates on start"
+msgstr "Beim Start nach Updates suchen"
+
+#: authswitch/gui.py:409
+msgid "Asks GitHub for the latest release, without any account"
+msgstr "Fragt GitHub nach dem neuesten Release, ohne ein Konto zu verwenden"
+
+#: authswitch/gui.py:420
+#, python-brace-format
+msgid "Auth-Switch {version} is available"
+msgstr "Auth-Switch {version} ist verfügbar"
+
+#: authswitch/leaks.py:130
+#, python-brace-format
+msgid "The token currently stored for {account}."
+msgstr "Das aktuell für {account} gespeicherte Token."
+
+#: authswitch/leaks.py:134
+msgid "Looks like an access token."
+msgstr "Sieht aus wie ein Zugriffstoken."
+
+#: authswitch/leaks.py:136
+msgid "A private key."
+msgstr "Ein privater Schlüssel."
+
+#: authswitch/leaks.py:140
+#, python-brace-format
+msgid "Address of your Proxmox VE server {host}."
+msgstr "Adresse deines Proxmox-VE-Servers {host}."
+
+#: authswitch/leaks.py:144
+msgid "Your real git e-mail address."
+msgstr "Deine echte Git-E-Mail-Adresse."
+
+#: authswitch/leaks.py:146
+msgid "An e-mail address; check that it is meant to be public."
+msgstr "Eine E-Mail-Adresse; bitte prüfen, ob sie öffentlich sein soll."
+
+#: authswitch/leaks.py:148
+msgid "A path inside your home directory; it reveals your user name."
+msgstr "Ein Pfad in deinem Home-Verzeichnis; er verrät deinen Benutzernamen."
+
+#: authswitch/leaks.py:150
+msgid "The name of this computer."
+msgstr "Der Name dieses Rechners."
+
+#: authswitch/leaks.py:157
+msgid "An address from a private network."
+msgstr "Eine Adresse aus einem privaten Netz."
+
+#: authswitch/leaks.py:159
+msgid "A host name from an internal network."
+msgstr "Ein Hostname aus einem internen Netz."
+
+#: authswitch/leaks.py:163
+#, python-brace-format
+msgid "An attribution line naming {term}."
+msgstr "Eine Mitautor-Zeile, die {term} nennt."
+
+#: authswitch/leaks.py:165
+#, python-brace-format
+msgid "A mention of {term}."
+msgstr "Eine Erwähnung von {term}."
+
+#: authswitch/leaks.py:173
+#, python-brace-format
+msgid "This belongs only in {repository}."
+msgstr "Das gehört nur nach {repository}."
+
+#: authswitch/leaks.py:174
+msgid "This is not meant to be published."
+msgstr "Das soll nicht veröffentlicht werden."
+
+#: authswitch/leaks.py:181
+#, python-brace-format
+msgid "A file on your restricted list ({term})."
+msgstr "Eine Datei von deiner Sperrliste ({term})."
+
+#: authswitch/leaks.py:199
+#, python-brace-format
+msgid "{path} does not exist."
+msgstr "{path} existiert nicht."
+
+#: authswitch/leaks.py:247
+#, python-brace-format
+msgid "{path} is not a git repository."
+msgstr "{path} ist kein Git-Repository."
+
+#: authswitch/mcp.py:17
+msgid "Server as host or host:port, only needed if several are set up"
+msgstr ""
+"Server als host oder host:port, nur nötig, wenn mehrere eingerichtet sind"
+
+#: authswitch/mcp.py:23
+msgid ""
+"List the Proxmox VE accounts (API tokens) Auth-Switch manages, per server, "
+"including which one is active, whether the token still works and the Proxmox "
+"VE version. Secrets are never returned."
+msgstr ""
+"Listet pro Server die von Auth-Switch verwalteten Proxmox-VE-Konten (API-"
+"Tokens) auf, einschließlich des aktiven Kontos, der Gültigkeit des Tokens "
+"und der Proxmox-VE-Version. Geheimnisse werden nie zurückgegeben."
+
+#: authswitch/mcp.py:32
+msgid ""
+"Make another API token the active account of a Proxmox VE server. The "
+"Proxmox tools of this server and 'auth-switch exec' then act with its "
+"permissions."
+msgstr ""
+"Macht ein anderes API-Token zum aktiven Konto eines Proxmox-VE-Servers. Die "
+"Proxmox-Tools dieses Servers und 'auth-switch exec' handeln dann mit dessen "
+"Berechtigungen."
+
+#: authswitch/mcp.py:38
+msgid "Token ID such as root@pam!automation, or a user"
+msgstr "Token-ID wie root@pam!automation oder ein Benutzer"
+
+#: authswitch/mcp.py:48
+msgid ""
+"Read from the Proxmox VE API as the active account. The path is relative to /"
+"api2/json, for example /cluster/resources?type=vm, /nodes, /nodes/NODE/"
+"qemu, /nodes/NODE/lxc/VMID/status/current, /nodes/NODE/storage or /cluster/"
+"tasks. Endpoints that issue tickets or credentials are blocked."
+msgstr ""
+"Liest als aktives Konto aus der Proxmox-VE-API. Der Pfad ist relativ zu /"
+"api2/json, zum Beispiel /cluster/resources?type=vm, /nodes, /nodes/NODE/"
+"qemu, /nodes/NODE/lxc/VMID/status/current, /nodes/NODE/storage oder /cluster/"
+"tasks. Endpunkte, die Tickets oder Zugangsdaten ausstellen, sind gesperrt."
+
+#: authswitch/mcp.py:55 authswitch/mcp.py:77
+msgid "API path below /api2/json, starting with /"
+msgstr "API-Pfad unterhalb von /api2/json, beginnend mit /"
+
+#: authswitch/mcp.py:56
+msgid "Query parameters"
+msgstr "Abfrageparameter"
+
+#: authswitch/mcp.py:67
+msgid ""
+"Change something through the Proxmox VE API as the active account, for "
+"example start or stop a guest (POST /nodes/NODE/qemu/VMID/status/start), "
+"create a snapshot (POST /nodes/NODE/qemu/VMID/snapshot) or change a "
+"configuration (PUT /nodes/NODE/qemu/VMID/config). The path is relative to /"
+"api2/json; parameters are sent as form fields. Many calls return a task ID "
+"(UPID) whose progress can be read at /nodes/NODE/tasks/UPID/status. DELETE "
+"removes data permanently."
+msgstr ""
+"Ändert als aktives Konto etwas über die Proxmox-VE-API, zum Beispiel einen "
+"Gast starten oder stoppen (POST /nodes/NODE/qemu/VMID/status/start), einen "
+"Snapshot anlegen (POST /nodes/NODE/qemu/VMID/snapshot) oder eine "
+"Konfiguration ändern (PUT /nodes/NODE/qemu/VMID/config). Der Pfad ist "
+"relativ zu /api2/json; Parameter werden als Formularfelder gesendet. Viele "
+"Aufrufe liefern eine Task-ID (UPID), deren Fortschritt unter /nodes/NODE/"
+"tasks/UPID/status lesbar ist. DELETE löscht Daten endgültig."
+
+#: authswitch/mcp.py:78
+msgid "Parameters of the call"
+msgstr "Parameter des Aufrufs"
+
+#: authswitch/mcp.py:89
+msgid ""
+"Check content for private data before it is published: secrets of the "
+"Proxmox VE accounts, other access tokens and private keys, addresses of the "
+"user's Proxmox servers, the real git e-mail address, paths in the home "
+"directory, the computer name and internal network addresses. Call it before "
+"committing, pushing, creating a release, opening an issue or pull request, "
+"or putting text into a README. Pass 'repository' to check what the next push "
+"would publish, 'paths' for files or folders, or 'text' for a draft. Findings "
+"of severity 'secret' must be removed; discuss 'private' and 'review' "
+"findings with the user instead of publishing them."
+msgstr ""
+"Prüft Inhalte vor der Veröffentlichung auf private Daten: Geheimnisse der "
+"Proxmox-VE-Konten, andere Zugriffstokens und private Schlüssel, Adressen der "
+"Proxmox-Server des Nutzers, die echte Git-E-Mail-Adresse, Pfade im Home-"
+"Verzeichnis, den Rechnernamen und interne Netzwerkadressen. Vor jedem "
+"Commit, Push, Release, Issue oder Pull Request und vor Text für ein README "
+"aufrufen. 'repository' prüft, was der nächste Push veröffentlichen würde, "
+"'paths' Dateien oder Ordner, 'text' einen Entwurf. Funde der Stufe 'secret' "
+"müssen entfernt werden; Funde der Stufen 'private' und 'review' mit dem "
+"Nutzer besprechen, statt sie zu veröffentlichen."
+
+#: authswitch/mcp.py:100
+msgid "Text to check, for example a draft README or message"
+msgstr "Zu prüfender Text, zum Beispiel ein README-Entwurf oder eine Nachricht"
+
+#: authswitch/mcp.py:101
+msgid "Files or folders to check"
+msgstr "Zu prüfende Dateien oder Ordner"
+
+#: authswitch/mcp.py:104
+msgid ""
+"Git working copy; checks staged changes and commits not yet on the upstream"
+msgstr ""
+"Git-Arbeitskopie; prüft vorgemerkte Änderungen und Commits, die dem Upstream "
+"noch fehlen"
+
+#: authswitch/mcp.py:120
+msgid ""
+"Before publishing anything on the user's behalf (commit, push, release, "
+"issue, pull request, README), run check_for_leaks on it and resolve the "
+"findings with the user."
+msgstr ""
+"Bevor im Namen des Nutzers etwas veröffentlicht wird (Commit, Push, Release, "
+"Issue, Pull Request, README), check_for_leaks darauf ausführen und die Funde "
+"mit dem Nutzer klären."
+
+#: authswitch/mcp.py:127
+#, python-brace-format
+msgid ""
+"Do not mention {terms} in anything you publish, and add no Co-Authored-By or "
+"'Generated with' lines naming them."
+msgstr ""
+"{terms} in nichts erwähnen, was veröffentlicht wird, und keine Co-Authored-"
+"By- oder „Generated with“-Zeilen hinzufügen, die sie nennen."
+
+#: authswitch/mcp.py:131
+#, python-brace-format
+msgid "Such notes belong only in the repository {repository}."
+msgstr "Solche Hinweise gehören nur in das Repository {repository}."
+
+#: authswitch/mcp.py:140
+#, python-brace-format
+msgid ""
+"Auth-Switch was updated to {version}; restart the client so this MCP server "
+"runs the new version."
+msgstr ""
+"Auth-Switch wurde auf {version} aktualisiert; den Client neu starten, damit "
+"dieser MCP-Server die neue Version ausführt."
+
+#: authswitch/mcp.py:144
+#, python-brace-format
+msgid "Auth-Switch {version} is available: {url}"
+msgstr "Auth-Switch {version} ist verfügbar: {url}"
+
+#: authswitch/mcp.py:153
+#, python-brace-format
+msgid "Not sent: the request contains a secret ({detail})"
+msgstr "Nicht gesendet: Die Anfrage enthält ein Geheimnis ({detail})"
+
+#: authswitch/mcp.py:167
+msgid "'token_id' is required"
+msgstr "'token_id' ist erforderlich"
+
+#: authswitch/mcp.py:186
+#, python-brace-format
+msgid "Unknown tool: {name}"
+msgstr "Unbekanntes Tool: {name}"
+
+#: authswitch/mcp.py:221
+msgid "[Result cut off; narrow the request.]"
+msgstr "[Ergebnis abgeschnitten; Anfrage eingrenzen.]"
+
+#: authswitch/mcp.py:223
+#, python-brace-format
+msgid "Method not found: {method}"
+msgstr "Methode nicht gefunden: {method}"
+
+#: authswitch/mcp.py:235
+msgid "Parse error"
+msgstr "Syntaxfehler"
