@@ -28,7 +28,8 @@ Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch)
 - Adjust what a token may do with switches – read, use or manage guests, manage
   storage, accounts, networks or nodes (Proxmox VE roles)
 - Deny a token access to single guests, storages or nodes from a drop-down in
-  its entry
+  its entry; start, shut down, restart or stop guests and copy files into and
+  out of them from the same list
 - Checks the subscription when an account is added and shows whether the
   server uses the enterprise or the no-subscription repository; without a
   subscription it can switch the repositories and remove the "No valid
@@ -54,14 +55,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.4.3_all.deb
+sudo apt install ./auth-switch_0.4.4_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.3-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.4-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -100,7 +101,9 @@ machine, container, storage and node of the cluster. Switching one off denies
 the token access to it with the *NoAccess* role, which overrides broader
 rights such as a role on `/`; switching it on again removes that entry. Like
 the roles, this is changed with another account of the server, selectable at
-the bottom of the drop-down.
+the bottom of the drop-down. The drop-down shows whether each guest is running
+and stays open while dialogs started from it are shown; a click beside it or
+Escape closes it.
 
 The MCP server keeps to these blocks itself as well: it refuses calls that touch
 a blocked guest, storage or node and leaves them out of lists. That also works
@@ -222,6 +225,20 @@ Windows, root and regular users on Linux – and offers:
 
 VMs need a running QEMU guest agent. Containers have none, so they are reached
 with `pct exec` over the access of **SSH for my terminal**, which must be on.
+
+### Power and files
+
+Next to **User accounts…**, every guest in the drop-down has two more buttons:
+
+- **Start, shut down…:** a stopped guest can be started; a running one shut
+  down or restarted – both ask the system in the guest – or stopped at once,
+  like a power cut. The drop-down shows the new state afterwards.
+- **Transfer files…:** copies files into a folder of the guest (several at
+  once) or a file out of it to a place you choose. The Downloads folder of the
+  first account people sign in with is suggested. Uploaded files get the owner
+  of the folder they land in. Containers stream the file over **SSH for my
+  terminal**; VMs go through the QEMU guest agent in parts of 45 KiB, so large
+  files take a while there.
 
 ## How secrets are protected
 

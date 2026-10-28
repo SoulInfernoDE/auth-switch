@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from authswitch import core, discovery, guestaccounts, leaks, mcp, rootshell, sshaccess, update
+from authswitch import core, discovery, guestaccounts, guestfiles, leaks, mcp, rootshell, sshaccess, update
 
 TOKEN = "root@pam!automation"
 SECRET = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0"
@@ -744,6 +744,70 @@ class GuestAccountTest(unittest.TestCase):
         with mock.patch.object(sshaccess, "status", return_value={"enabled": False}):
             with self.assertRaises(core.AuthError):
                 container.run(["true"])
+
+
+class GuestPowerAndFilesTest(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.object(guestaccounts, "_", lambda text: text)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.vm = guestaccounts.Guest("pve.example.com:8006", "pve", "qemu", 100, core.Account("pve.example.com:8006", TOKEN, True))
+
+    def test_power_waits_for_the_task(self):
+        answers = iter([{"status": "running"}, {"status": "stopped", "exitstatus": "OK"}])
+        with mock.patch.object(self.vm, "_api", return_value="UPID:1") as api, \
+                mock.patch.object(core, "_active_secret", return_value="s"), \
+                mock.patch.object(core, "request", side_effect=lambda *a, **k: next(answers)), \
+                mock.patch.object(guestaccounts.time, "sleep"):
+            self.vm.power("shutdown")
+        api.assert_called_once_with("POST", "/status/shutdown", {"timeout": 180})
+        with self.assertRaises(ValueError):
+            self.vm.power("destroy")
+
+    def test_power_reports_a_failed_task(self):
+        with mock.patch.object(self.vm, "_api", return_value="UPID:1"), \
+                mock.patch.object(core, "_active_secret", return_value="s"), \
+                mock.patch.object(core, "request", return_value={"status": "stopped", "exitstatus": "VM quit/powerdown failed"}):
+            with self.assertRaises(core.AuthError):
+                self.vm.power("reboot")
+
+    def test_upload_to_a_vm_writes_parts_below_the_limit_and_joins_them(self):
+        with tempfile.TemporaryDirectory() as folder:
+            local = os.path.join(folder, "data.bin")
+            with open(local, "wb") as handle:
+                handle.write(os.urandom(guestfiles.WRITE_CHUNK * 2 + 10))
+            writes, steps = [], []
+            with mock.patch.object(self.vm, "system", return_value=guestaccounts.LINUX), \
+                    mock.patch.object(self.vm, "execute", return_value=(0, "", "")) as execute, \
+                    mock.patch.object(self.vm, "_api", side_effect=lambda method, path, params=None: writes.append(params)):
+                target = guestfiles.upload(self.vm, guestfiles.Path(local), "/home/dana/Downloads", lambda done, total: steps.append(done))
+        self.assertEqual(target, "/home/dana/Downloads/data.bin")
+        self.assertEqual(len(writes), 3)
+        self.assertTrue(all(len(w["content"]) <= 61440 and w["encode"] == 0 for w in writes))
+        self.assertEqual(steps[-1], guestfiles.WRITE_CHUNK * 2 + 10)
+        join = execute.call_args_list[-1]
+        self.assertEqual(join.args[0][-2:], ["/home/dana/Downloads/data.bin", str(guestfiles.WRITE_CHUNK * 2 + 10)])
+        self.assertEqual(join.kwargs["retries"], guestfiles.RETRIES)
+
+    def test_download_from_a_vm_reads_base64_parts(self):
+        data = os.urandom(1000)
+        answers = iter([(0, "1000\n", ""), (0, guestfiles.base64.b64encode(data).decode(), "")])
+        with tempfile.TemporaryDirectory() as folder:
+            local = guestfiles.Path(folder) / "back.bin"
+            with mock.patch.object(self.vm, "system", return_value=guestaccounts.LINUX), \
+                    mock.patch.object(self.vm, "execute", side_effect=lambda *a, **k: next(answers)):
+                guestfiles.download(self.vm, "/etc/hostname", local, lambda done, total: None)
+            self.assertEqual(local.read_bytes(), data)
+
+    def test_container_commands_are_quoted_for_the_remote_shell(self):
+        container = guestaccounts.Guest("pve.example.com:8006", "pve", "lxc", 200, core.Account("pve.example.com:8006", TOKEN, True))
+        with mock.patch.object(sshaccess, "status", return_value={"enabled": True}), \
+                mock.patch.object(core, "ssh_command", return_value=["ssh", "root@pve"]):
+            command = guestfiles._container_command(container, ["cat", "/home/dana/my file"])
+        self.assertEqual(command[-1], "pct exec 200 -- cat '/home/dana/my file'")
+
+    def test_windows_paths_are_quoted_for_powershell(self):
+        self.assertEqual(guestfiles._ps_quote("C:\\Users\\o'brien"), "'C:\\Users\\o''brien'")
 
 
 class DiscoveryTest(unittest.TestCase):

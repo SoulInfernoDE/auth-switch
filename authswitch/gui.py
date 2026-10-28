@@ -15,7 +15,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import __version__, core, discovery, guestaccounts, rootshell, sound, sshaccess, update  # noqa: E402
+from . import __version__, core, discovery, guestaccounts, guestfiles, rootshell, sound, sshaccess, update  # noqa: E402
 from .i18n import _  # noqa: E402
 
 APP_ID = ICON_NAME = "dev.authswitch.AuthSwitch"
@@ -240,6 +240,7 @@ class Window(Adw.ApplicationWindow):
         )
         access.add_css_class("flat")
         access.set_popover(self.build_access_popover(account))
+        self.keep_open(access.get_popover(), access)
         row.add_suffix(access)
         more = Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, valign=Gtk.Align.CENTER)
         more.add_css_class("flat")
@@ -348,7 +349,7 @@ class Window(Adw.ApplicationWindow):
         status = Gtk.Label(xalign=0, wrap=True, max_width_chars=40)
         rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         rows.add_css_class("boxed-list")
-        scrolled = Gtk.ScrolledWindow(child=rows, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True, max_content_height=420, min_content_width=340)
+        scrolled = Gtk.ScrolledWindow(child=rows, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True, max_content_height=420, min_content_width=440)
         chooser = Gtk.DropDown(model=Gtk.StringList.new([a.token_id for a in managers]), tooltip_text=_("Change with"))
         chooser.set_visible(len(managers) > 1)
         for widget in (heading, hint, status, scrolled, chooser):
@@ -418,14 +419,23 @@ class Window(Adw.ApplicationWindow):
                 )
             )
             enforce.set_visible(not privsep)
+            states = {"running": _("running"), "stopped": _("off"), "paused": _("paused")}
             for resource in resources:
-                row = Adw.ActionRow(title=resource["label"], subtitle=kinds[resource["kind"]], use_markup=False)
+                # For guests the icon already tells VM from container; the state matters more.
+                subtitle = states.get(resource["status"], resource["status"]) if resource.get("status") else kinds[resource["kind"]]
+                row = Adw.ActionRow(title=resource["label"], subtitle=subtitle, use_markup=False)
                 row.add_prefix(Gtk.Image(icon_name=icons[resource["kind"]]))
                 if resource["kind"] in ("qemu", "lxc"):
-                    people = Gtk.Button(icon_name="system-users-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("User accounts…"))
-                    people.add_css_class("flat")
-                    people.connect("clicked", lambda _b, r=resource: (popover.popdown(), self.open_guest_accounts(account.host, r, manager())))
-                    row.add_suffix(people)
+                    # The list stays open while these dialogs are shown; it closes on a click beside it.
+                    for icon, tip, handler in (
+                        ("system-shutdown-symbolic", _("Start, shut down …"), self.open_guest_power),
+                        ("document-send-symbolic", _("Transfer files…"), self.open_guest_files),
+                        ("system-users-symbolic", _("User accounts…"), self.open_guest_accounts),
+                    ):
+                        button = Gtk.Button(icon_name=icon, valign=Gtk.Align.CENTER, tooltip_text=tip)
+                        button.add_css_class("flat")
+                        button.connect("clicked", lambda _b, r=resource, h=handler: h(account.host, r, manager(), load))
+                        row.add_suffix(button)
                 switch = Gtk.Switch(active=resource["path"] not in denied, valign=Gtk.Align.CENTER, tooltip_text=resource["path"])
                 switch.connect("notify::active", toggled, resource["path"])
                 row.add_suffix(switch)
@@ -451,9 +461,188 @@ class Window(Adw.ApplicationWindow):
         chooser.connect("notify::selected", load)
         return popover
 
+    def keep_open(self, popover: Gtk.Popover, button: Gtk.MenuButton) -> None:
+        """Keep a drop-down open while dialogs started from it are shown; a click beside it closes it."""
+        popover.set_autohide(False)
+        if not hasattr(self, "sticky"):
+            self.sticky = []
+            click = Gtk.GestureClick(button=0, propagation_phase=Gtk.PropagationPhase.CAPTURE)
+            click.connect("pressed", self.close_sticky)
+            self.add_controller(click)
+        self.sticky.append((popover, button))
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", lambda _c, key, _code, _state: key == Gdk.KEY_Escape and (popover.popdown() or True))
+        popover.add_controller(keys)
+
+    def close_sticky(self, _gesture, _count, x, y) -> None:
+        # Clicks inside a drop-down reach its own surface, never the window: anything here is beside it.
+        picked = self.pick(x, y, Gtk.PickFlags.DEFAULT)
+        for popover, button in self.sticky:
+            if popover.get_visible() and not (picked and picked.is_ancestor(button) or picked is button):
+                popover.popdown()
+
     # --- user accounts inside a guest ------------------------------------------
 
-    def open_guest_accounts(self, host: str, resource: dict, manager: core.Account) -> None:
+    # --- power and files of a guest --------------------------------------------
+
+    def open_guest_power(self, host: str, resource: dict, manager: core.Account, refresh=None) -> None:
+        vmid = resource["path"].rsplit("/", 1)[1]
+        guest = guestaccounts.Guest(host, resource["node"], resource["kind"], vmid, manager)
+        label = resource["label"]
+        done_loading = self.busy(_("Reading the state of {guest}…").format(guest=label))
+
+        def loaded(state, error):
+            done_loading()
+            if error:
+                self.explain(_("The state could not be read"), str(error))
+                return
+            running = state == "running"
+            dialog = Adw.MessageDialog(
+                transient_for=self, heading=label,
+                body=(_("Running. Shutting down and restarting ask the system in the guest; stopping switches it off "
+                        "at once like a power cut, unsaved work is lost.") if running else _("Switched off.")),
+            )
+            dialog.add_response("close", _("Close"))
+            if running:
+                dialog.add_response("stop", _("Stop"))
+                dialog.add_response("reboot", _("Restart"))
+                dialog.add_response("shutdown", _("Shut down"))
+                dialog.set_response_appearance("stop", Adw.ResponseAppearance.DESTRUCTIVE)
+                dialog.set_response_appearance("shutdown", Adw.ResponseAppearance.SUGGESTED)
+            else:
+                dialog.add_response("start", _("Start"))
+                dialog.set_response_appearance("start", Adw.ResponseAppearance.SUGGESTED)
+            dialog.connect("response", lambda _d, action: action in guestaccounts.POWER_ACTIONS and self.power_guest(guest, label, action, refresh))
+            dialog.present()
+
+        run_async(guest.status, loaded)
+
+    def power_guest(self, guest, label: str, action: str, refresh=None) -> None:
+        busy = {
+            "start": _("Starting {guest}…"), "shutdown": _("Shutting down {guest}…"),
+            "reboot": _("Restarting {guest}…"), "stop": _("Stopping {guest}…"),
+        }
+        done_text = {
+            "start": _("{guest} is running"), "shutdown": _("{guest} is shut down"),
+            "reboot": _("{guest} has restarted"), "stop": _("{guest} is stopped"),
+        }
+        done_loading = self.busy(busy[action].format(guest=label))
+
+        def done(_result, error):
+            done_loading()
+            if error:
+                self.explain(_("{guest} did not react as expected").format(guest=label), str(error))
+            else:
+                self.toast(done_text[action].format(guest=label), "success")
+            if refresh:
+                refresh()
+
+        run_async(lambda: guest.power(action), done)
+
+    def open_guest_files(self, host: str, resource: dict, manager: core.Account, refresh=None) -> None:
+        vmid = resource["path"].rsplit("/", 1)[1]
+        guest = guestaccounts.Guest(host, resource["node"], resource["kind"], vmid, manager)
+        label = resource["label"]
+        if resource.get("status") not in ("running", ""):
+            self.explain(_("Files cannot be transferred"), _("{guest} is switched off; start it first.").format(guest=label))
+            return
+        dialog = Adw.MessageDialog(
+            transient_for=self, heading=_("Transfer files – {guest}").format(guest=label),
+            body=_("Copies files into the guest or out of it. Virtual machines need the QEMU guest agent, containers "
+                   "\"SSH for my terminal\". Large files take a while on virtual machines."),
+        )
+        dialog.add_response("close", _("Close"))
+        dialog.add_response("download", _("Copy from the guest…"))
+        dialog.add_response("upload", _("Copy into the guest…"))
+        dialog.set_response_appearance("upload", Adw.ResponseAppearance.SUGGESTED)
+
+        def on_response(_dialog, response):
+            if response == "upload":
+                Gtk.FileDialog(title=_("Files to copy into {guest}").format(guest=label)).open_multiple(self, None, chosen)
+            elif response == "download":
+                ask_path(_("File in the guest"), _("Copy from the guest"), fetch, file=True)
+
+        def chosen(file_dialog, result):
+            try:
+                files = file_dialog.open_multiple_finish(result)
+            except GLib.Error:
+                return
+            paths = [Path(files.get_item(i).get_path()) for i in range(files.get_n_items())]
+            ask_path(_("Folder in the guest"), _("Copy here"), lambda folder: self.transfer(
+                guest, label, [(path, folder) for path in paths], upload=True), file=False)
+
+        def ask_path(title: str, action: str, then, file: bool) -> None:
+            entry = Adw.EntryRow(title=title)
+            rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+            rows.add_css_class("boxed-list")
+            rows.set_size_request(420, -1)
+            rows.append(entry)
+            ask = Adw.MessageDialog(transient_for=self, heading=label, extra_child=rows)
+            ask.add_response("cancel", _("Cancel"))
+            ask.add_response("ok", action)
+            ask.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+            entry.connect("changed", lambda *_a: ask.set_response_enabled("ok", bool(entry.get_text().strip())))
+            ask.set_response_enabled("ok", False)
+            ask.connect("response", lambda _d, r: r == "ok" and then(entry.get_text().strip()))
+            ask.present()
+            # The folder people usually want, filled in once it is known (asking the guest takes a moment)
+            def suggestion():
+                folder = guestfiles.default_folder(guest)
+                return guestfiles.join(guest, folder, "") if file else folder
+
+            run_async(suggestion, lambda text, error: not error and not entry.get_text() and entry.set_text(text))
+
+        def fetch(remote: str) -> None:
+            name = remote.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+            save = Gtk.FileDialog(title=_("Save as"), initial_name=name)
+
+            def saved(file_dialog, result):
+                try:
+                    target = file_dialog.save_finish(result)
+                except GLib.Error:
+                    return
+                self.transfer(guest, label, [(remote, Path(target.get_path()))], upload=False)
+
+            save.save(self, None, saved)
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    def transfer(self, guest, label: str, jobs: list, upload: bool) -> None:
+        """Copy one file after the other and show the progress in a toast."""
+        box = Gtk.Box(spacing=10)
+        box.append(Gtk.Spinner(spinning=True))
+        text = Gtk.Label()
+        box.append(text)
+        toast = Adw.Toast(custom_title=box, timeout=0)
+        self.toasts.add_toast(toast)
+
+        def show(name: str, done: int, total: int) -> None:
+            percent = 100 if not total else done * 100 // total
+            GLib.idle_add(lambda: text.set_label(_("Copying {name} … {percent} %").format(name=name, percent=percent)) and False)
+
+        def work():
+            for source, target in jobs:
+                name = source.name if upload else source.replace("\\", "/").rsplit("/", 1)[-1]
+                show(name, 0, 1)
+                if upload:
+                    guestfiles.upload(guest, source, target, lambda done, total, n=name: show(n, done, total))
+                else:
+                    guestfiles.download(guest, source, target, lambda done, total, n=name: show(n, done, total))
+            return len(jobs)
+
+        def done(count, error):
+            toast.dismiss()
+            if error:
+                self.explain(_("The transfer stopped"), str(error))
+            elif upload:
+                self.toast(_("{count} file(s) copied into {guest}").format(count=count, guest=label), "success")
+            else:
+                self.toast(_("{count} file(s) copied from {guest}").format(count=count, guest=label), "success")
+
+        run_async(work, done)
+
+    def open_guest_accounts(self, host: str, resource: dict, manager: core.Account, refresh=None) -> None:
         vmid = resource["path"].rsplit("/", 1)[1]
         guest = guestaccounts.Guest(host, resource["node"], resource["kind"], vmid, manager)
         done_loading = self.busy(_("Reading the accounts of {guest}…").format(guest=resource["label"]))

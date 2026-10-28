@@ -521,7 +521,8 @@ def list_resources(host: str, manager: Account) -> list[dict]:
         else:
             continue
         # Storages are listed once per node but share one ACL path.
-        found.setdefault(path, {"path": path, "kind": kind, "label": label, "node": item.get("node", "")})
+        found.setdefault(path, {"path": path, "kind": kind, "label": label, "node": item.get("node", ""),
+                                "status": item.get("status", "") if kind in ("qemu", "lxc") else ""})
     order = {"qemu": 0, "lxc": 0, "storage": 1, "node": 2}
     return sorted(found.values(), key=lambda r: (order[r["kind"]], r["path"]))
 
@@ -808,7 +809,8 @@ def ssh_command(host: str, timeout: int = 10) -> list[str]:
     """ssh as root without any question; uses the key of "SSH for my terminal" while it is switched on."""
     from . import sshaccess
 
-    command = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}"]
+    # A neutral locale on the server: one it lacks makes its tools print warnings into the output.
+    command = ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}", "-o", "SetEnv=LC_ALL=C.UTF-8"]
     if sshaccess.status(host)["enabled"]:
         command += ["-i", str(sshaccess._key_file(host)), "-o", "IdentitiesOnly=yes"]
     return command + [f"root@{split_host(host)[0]}"]

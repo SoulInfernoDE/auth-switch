@@ -29,7 +29,9 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
 - Per Schalter festlegen, was ein Token darf – Gäste lesen, benutzen oder
   verwalten, Speicher, Konten, Netzwerke oder Knoten verwalten (Proxmox-VE-Rollen)
 - Einem Token den Zugriff auf einzelne Gäste, Speicher oder Knoten über ein
-  Dropdown im Eintrag verweigern
+  Dropdown im Eintrag verweigern; in derselben Liste Gäste starten,
+  herunterfahren, neu starten oder stoppen und Dateien hinein- oder
+  herauskopieren
 - Prüft beim Hinzufügen das Abonnement und zeigt, ob der Server das
   Enterprise- oder das No-Subscription-Repository nutzt; ohne Abonnement kann
   es die Repositories umstellen und den Hinweis „No valid subscription“
@@ -55,14 +57,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.4.3_all.deb
+sudo apt install ./auth-switch_0.4.4_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.3-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.4-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -103,7 +105,9 @@ virtuellen Maschinen, Containern, Speichern und Knoten des Clusters.
 Ausschalten verweigert dem Token den Zugriff darauf mit der Rolle *NoAccess*,
 die weiter gefasste Rechte wie eine Rolle auf `/` übersteuert; Einschalten
 entfernt diesen Eintrag wieder. Wie bei den Rollen geschieht das mit einem
-anderen Konto des Servers, auswählbar unten im Dropdown.
+anderen Konto des Servers, auswählbar unten im Dropdown. Das Dropdown zeigt,
+ob ein Gast läuft, und bleibt offen, solange daraus gestartete Dialoge zu sehen
+sind; ein Klick daneben oder Escape schließt es.
 
 Der MCP-Server hält sich zusätzlich selbst an diese Sperren: Er lehnt Aufrufe
 ab, die einen gesperrten Gast, Speicher oder Knoten betreffen, und lässt sie in
@@ -240,6 +244,21 @@ Linux – und bietet:
 VMs brauchen einen laufenden QEMU-Gast-Agenten. Container haben keinen; sie
 werden mit `pct exec` über den Zugang von **SSH für mein Terminal** erreicht,
 der dafür eingeschaltet sein muss.
+
+### Ein/Aus und Dateien
+
+Neben **Benutzerkonten …** hat jeder Gast im Dropdown zwei weitere Knöpfe:
+
+- **Starten, Herunterfahren …:** Ein ausgeschalteter Gast lässt sich starten,
+  ein laufender herunterfahren oder neu starten – beides bittet das System im
+  Gast darum – oder sofort stoppen wie bei einem Stromausfall. Das Dropdown
+  zeigt danach den neuen Zustand.
+- **Dateien übertragen …:** kopiert Dateien in einen Ordner des Gastes (auch
+  mehrere auf einmal) oder eine Datei aus ihm an einen Ort deiner Wahl.
+  Vorgeschlagen wird der Download-Ordner des ersten Kontos, mit dem man sich
+  anmeldet. Hochgeladene Dateien gehören dem Besitzer des Zielordners.
+  Container übertragen über **SSH für mein Terminal**; VMs gehen in Teilen zu
+  45 KiB über den QEMU-Gast-Agenten, große Dateien dauern dort eine Weile.
 
 ## So werden Geheimnisse geschützt
 

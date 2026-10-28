@@ -1,6 +1,7 @@
 """User accounts inside guests: list them, change a password, rename one without leaving the old name behind.
 
-The guest's computer name can also be set to its VM name.
+The guest's computer name can also be set to its VM name, and the guest can be started,
+shut down, rebooted or stopped.
 
 Virtual machines are reached through the QEMU guest agent, containers through
 ``pct exec`` over the SSH access of "SSH for my terminal". Passwords never
@@ -13,6 +14,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import shlex
 import subprocess
 import time
 
@@ -41,16 +43,30 @@ class Guest:
 
     # --- running commands ---------------------------------------------------
 
-    def run(self, command: list[str], stdin: str | None = None, timeout: float = 300) -> tuple[int, str]:
+    def run(self, command: list[str], stdin: str | None = None, timeout: float = 300, retries: int = 0) -> tuple[int, str]:
         if self.kind == "lxc":
             return self._run_in_container(command, stdin, timeout)
+        status, out, err = self.execute(command, stdin, timeout, retries)
+        return status, out + err
+
+    def execute(self, command: list[str], stdin: str | None = None, timeout: float = 300, retries: int = 0) -> tuple[int, str, str]:
+        """Run a command through the guest agent of a VM; standard output and error come back apart.
+
+        A busy guest (shortly after booting, for example) may answer the start too late. With
+        ``retries`` the command is sent again then – only for commands that may run twice.
+        """
         params = {"command": command}
         if stdin is not None:
             params["input-data"] = stdin
-        try:
-            pid = self._api("POST", "/agent/exec", params)["pid"]
-        except core.AuthError as error:
-            raise core.AuthError(_("The guest agent does not answer; is the VM running with the agent installed?") + f"\n\n{error}") from None
+        for attempt in range(retries + 1):
+            try:
+                pid = self._api("POST", "/agent/exec", params)["pid"]
+                break
+            except core.AuthError as error:
+                if "timeout" in str(error) and attempt < retries:
+                    time.sleep(5)
+                    continue
+                raise core.AuthError(_("The guest agent does not answer; is the VM running with the agent installed?") + f"\n\n{error}") from None
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
@@ -62,7 +78,7 @@ class Guest:
                 time.sleep(2)
                 continue
             if status.get("exited"):
-                return int(status.get("exitcode", 1)), status.get("out-data", "") + status.get("err-data", "")
+                return int(status.get("exitcode", 1)), status.get("out-data", ""), status.get("err-data", "")
             time.sleep(1)
         raise core.AuthError(_("The command in the guest did not finish in time."))
 
@@ -71,7 +87,8 @@ class Guest:
 
         if not sshaccess.status(self.host)["enabled"]:
             raise core.AuthError(_("Containers are reached over SSH; switch on \"SSH for my terminal\" for this server first."))
-        ssh = core.ssh_command(self.host) + ["pct", "exec", str(self.vmid), "--", *command]
+        # The remote shell reads the command line once more, so every word is quoted.
+        ssh = core.ssh_command(self.host) + [shlex.join(["pct", "exec", str(self.vmid), "--", *command])]
         try:
             proc = subprocess.run(ssh, input=stdin, capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -96,11 +113,11 @@ class Guest:
                 "Get-LocalUser | Where-Object Enabled | Select-Object Name,FullName,"
                 "@{n='Sid';e={$_.SID.Value}} | ConvertTo-Json -Compress"
             )
-            status, output = self.run(["powershell.exe", "-NoProfile", "-Command", script])
+            status, output = self.run(["powershell.exe", "-NoProfile", "-Command", script], retries=2)
             data = json.loads(output or "[]") if status == 0 else []
             users = [data] if isinstance(data, dict) else data
             return [{"name": u["Name"], "fullname": u.get("FullName") or ""} for u in users]
-        status, output = self.run(["getent", "passwd"])
+        status, output = self.run(["getent", "passwd"], retries=2)
         users = []
         for line in output.splitlines():
             parts = line.split(":")
@@ -179,6 +196,31 @@ class Guest:
 
     def restart(self) -> None:
         self._api("POST", "/status/reboot", {"timeout": 300})
+
+    # --- power --------------------------------------------------------------
+
+    def status(self) -> str:
+        """"running", "stopped" or another state Proxmox VE reports."""
+        return str(self._api("GET", "/status/current").get("status", ""))
+
+    def power(self, action: str) -> None:
+        """Start, shut down, reboot or stop the guest and wait until Proxmox VE has done it."""
+        if action not in POWER_ACTIONS:
+            raise ValueError(action)
+        # Shutting down and rebooting ask the guest first; it gets three minutes for that.
+        params = {"timeout": 180} if action in ("shutdown", "reboot") else None
+        upid = self._api("POST", f"/status/{action}", params)
+        secret = core._active_secret(self.manager)
+        while True:
+            task = core.request(self.host, self.manager.token_id, secret, "GET", f"/nodes/{self.node}/tasks/{upid}/status")
+            if task.get("status") == "stopped":
+                break
+            time.sleep(2)
+        if task.get("exitstatus") != "OK":
+            raise core.AuthError(_("Proxmox VE reports: {detail}").format(detail=task.get("exitstatus", "")))
+
+
+POWER_ACTIONS = ("start", "shutdown", "reboot", "stop")
 
 
 def computer_name_for(vm_name: str, system: str) -> str:
