@@ -300,92 +300,116 @@ msgid ""
 "characters."
 msgstr ""
 
-#: authswitch/guestaccounts.py:137
+#: authswitch/guestaccounts.py:139
 msgid "The rename failed."
 msgstr ""
 
-#: authswitch/guestaccounts.py:155
+#: authswitch/guestaccounts.py:157
 msgid "The computer name could not be read."
 msgstr ""
 
-#: authswitch/guestaccounts.py:165
+#: authswitch/guestaccounts.py:167
 msgid "This is no valid computer name."
 msgstr ""
 
-#: authswitch/guestaccounts.py:175
+#: authswitch/guestaccounts.py:177
 #, python-brace-format
 msgid "The computer name could not be changed: {detail}"
 msgstr ""
 
-#: authswitch/guestaccounts.py:229
+#: authswitch/guestaccounts.py:231
 #, python-brace-format
 msgid "Account: {0} → {1}"
 msgstr ""
 
-#: authswitch/guestaccounts.py:230
+#: authswitch/guestaccounts.py:232
 #, python-brace-format
 msgid "Display name: {0} → {1}"
 msgstr ""
 
-#: authswitch/guestaccounts.py:231
+#: authswitch/guestaccounts.py:233
 #, python-brace-format
 msgid "Profile folder: {0} → {1}"
 msgstr ""
 
-#: authswitch/guestaccounts.py:232
+#: authswitch/guestaccounts.py:234
 #, python-brace-format
 msgid "Group: {0} → {1}"
 msgstr ""
 
-#: authswitch/guestaccounts.py:233
+#: authswitch/guestaccounts.py:235
 #, python-brace-format
 msgid "Paths in {0}: {1}"
 msgstr ""
 
-#: authswitch/guestaccounts.py:234
+#: authswitch/guestaccounts.py:236
 #, python-brace-format
 msgid "Paths elsewhere in the system registry: {0}"
 msgstr ""
 
-#: authswitch/guestaccounts.py:235
+#: authswitch/guestaccounts.py:237
 #, python-brace-format
 msgid "Entry in {0}"
 msgstr ""
 
-#: authswitch/guestaccounts.py:236
+#: authswitch/guestaccounts.py:238
 msgid "Scheduled jobs (crontab) move along"
 msgstr ""
 
-#: authswitch/guestaccounts.py:237
+#: authswitch/guestaccounts.py:239
 msgid "Mailbox moves along"
 msgstr ""
 
-#: authswitch/guestaccounts.py:238
+#: authswitch/guestaccounts.py:240
 #, python-brace-format
 msgid "Left unchanged because the check failed: {0}"
 msgstr ""
 
-#: authswitch/guestaccounts.py:239
+#: authswitch/guestaccounts.py:241
 #, python-brace-format
-msgid "Places still naming the old name: {0}"
+msgid "{0} is signed in; sign the account out before renaming."
+msgstr ""
+
+#: authswitch/guestaccounts.py:242
+msgid "Programs still running from an ended session were stopped"
 msgstr ""
 
 #: authswitch/guestaccounts.py:243
 #, python-brace-format
-msgid "An account named {0} already exists."
+msgid "Places still naming the old name: {0}"
 msgstr ""
 
 #: authswitch/guestaccounts.py:244
 #, python-brace-format
-msgid "{0} is signed in. Sign the account out first, then rename it."
+msgid "Other places naming the account, left unchanged: {0}"
 msgstr ""
 
 #: authswitch/guestaccounts.py:245
 #, python-brace-format
-msgid "The folder {0} already exists."
+msgid "Settings files with the old profile path: {0}"
 msgstr ""
 
 #: authswitch/guestaccounts.py:246
+#, python-brace-format
+msgid "Log files that record the old name (history, left unchanged): {0}"
+msgstr ""
+
+#: authswitch/guestaccounts.py:250
+#, python-brace-format
+msgid "An account named {0} already exists."
+msgstr ""
+
+#: authswitch/guestaccounts.py:251
+#, python-brace-format
+msgid "{0} is signed in. Sign the account out first, then rename it."
+msgstr ""
+
+#: authswitch/guestaccounts.py:252
+#, python-brace-format
+msgid "The folder {0} already exists."
+msgstr ""
+
+#: authswitch/guestaccounts.py:253
 #, python-brace-format
 msgid "There is no account {0}."
 msgstr ""

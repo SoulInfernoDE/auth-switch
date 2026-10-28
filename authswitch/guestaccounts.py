@@ -134,7 +134,9 @@ class Guest:
             status, output = self.run(["sh", "-s"], stdin=linux_rename_script(old, new, preview), timeout=600)
         report = describe(output)
         if status != 0:
-            raise core.AuthError(report or output.strip()[-600:] or _("The rename failed."))
+            # The lines before an error only say what was planned; show what stopped the rename.
+            errors = describe("\n".join(line for line in output.splitlines() if line.startswith("ERROR\t")))
+            raise core.AuthError(errors or report or output.strip()[-600:] or _("The rename failed."))
         return report
 
     # --- computer name ------------------------------------------------------
@@ -236,7 +238,12 @@ def describe(output: str) -> str:
         "CRON": _("Scheduled jobs (crontab) move along"),
         "MAIL": _("Mailbox moves along"),
         "UNCHANGED": _("Left unchanged because the check failed: {0}"),
+        "SIGNEDIN": _("{0} is signed in; sign the account out before renaming."),
+        "STOPPED": _("Programs still running from an ended session were stopped"),
         "LEFTCOUNT": _("Places still naming the old name: {0}"),
+        "OTHERCOUNT": _("Other places naming the account, left unchanged: {0}"),
+        "SETTINGS": _("Settings files with the old profile path: {0}"),
+        "LOGS": _("Log files that record the old name (history, left unchanged): {0}"),
         "LEFT": "  {0}",
     }
     errors = {
@@ -346,7 +353,34 @@ files=$(grep -rlw -- "$old" /etc/sudoers /etc/sudoers.d /etc/subuid /etc/subgid 
 for f in $files; do printf 'FILE\t%s\n' "$f"; done
 [ -e "/var/spool/cron/crontabs/$old" ] && printf 'CRON\n'
 [ -e "/var/mail/$old" ] && printf 'MAIL\n'
+# Hidden files of the account (settings, bookmarks, recent files) naming the old home folder
+homepat="$(printf '%s' "$home" | sed 's/[.]/\\./g')([^A-Za-z0-9._-]|\$)"
+settings=''
+if [ "$newhome" != "$home" ] && [ -d "$home" ]; then
+    settings=$(find "$home" -mindepth 1 -path "$home/.*" -type f -size -2M -exec grep -lIE -- "$homepat" {} + 2>/dev/null || true)
+    printf 'SETTINGS\t%s\n' "$(printf '%s' "$settings" | grep -c . || true)"
+fi
+# Only an open session counts as signed in (a disconnected remote desktop too). After signing
+# out, user services such as pipewire or gvfs may keep running; logind then says "closing".
+state=$(loginctl show-user "$old" -p State --value 2>/dev/null || true)
+case $state in
+    active|online) signedin=1 ;;
+    '') if pgrep -u "$old" >/dev/null 2>&1; then signedin=1; else signedin=0; fi ;;
+    *) signedin=0 ;;
+esac
+[ "$signedin" = 1 ] && [ "$preview" = 1 ] && printf 'SIGNEDIN\t%s\n' "$old"
 if [ "$preview" = 0 ]; then
+    if [ "$signedin" = 1 ]; then printf 'ERROR\tsignedin\t%s\n' "$old"; exit 3; fi
+    # What an ended session left running would make usermod refuse.
+    if pgrep -u "$old" >/dev/null 2>&1; then
+        loginctl terminate-user "$old" 2>/dev/null || true
+        systemctl stop "user@$(id -u "$old").service" 2>/dev/null || true
+        pkill -TERM -u "$old" 2>/dev/null || true
+        sleep 2
+        pkill -KILL -u "$old" 2>/dev/null || true
+        sleep 1
+        printf 'STOPPED\n'
+    fi
     if pgrep -u "$old" >/dev/null 2>&1; then printf 'ERROR\tsignedin\t%s\n' "$old"; exit 3; fi
     if [ "$newhome" != "$home" ]; then usermod -l "$new" -d "$newhome" -m -c "$new" "$old"
     else usermod -l "$new" -c "$new" "$old"; fi
@@ -359,9 +393,28 @@ if [ "$preview" = 0 ]; then
     done
     [ -e "/var/spool/cron/crontabs/$old" ] && mv "/var/spool/cron/crontabs/$old" "/var/spool/cron/crontabs/$new"
     [ -e "/var/mail/$old" ] && mv "/var/mail/$old" "/var/mail/$new"
+    printf '%s\n' "$settings" | while read -r f; do
+        f="$newhome${f#"$home"}"
+        if [ -n "$settings" ] && [ -f "$f" ]; then sed -i -E "s#$homepat#$newhome\1#g" "$f"; fi
+    done
+    # The backups the shadow tools keep ("passwd-" etc.) would still hold the old name.
+    for f in passwd shadow group gshadow subuid subgid; do
+        [ -f "/etc/$f-" ] && [ -f "/etc/$f" ] && cp -p "/etc/$f" "/etc/$f-"
+    done
 fi
-left=$(grep -rlIw -- "$old" /etc 2>/dev/null | grep -v '\.as-tmp$' | head -n 10 || true)
-[ "$preview" = 0 ] && printf 'LEFTCOUNT\t%s\n' "$(printf '%s' "$left" | grep -c . || true)"
-printf '%s\n' "$left" | while read -r line; do [ -n "$line" ] && printf 'LEFT\t%s\n' "$line"; done
+# The name as a whole word, not as part of a host name such as "git.$old.example".
+pattern="(^|[^A-Za-z0-9._-])$(printf '%s' "$old" | sed 's/[.]/\\./g')([^A-Za-z0-9._-]|\$)"
+handled='^/etc/(passwd|shadow|group|gshadow|subuid|subgid)-?$|^/etc/sudoers'
+places="/etc /var/lib /var/spool"
+if [ "$preview" = 0 ] && [ -d "$newhome" ]; then places="$places $(find "$newhome" -mindepth 1 -maxdepth 1 -name '.*' | tr '\n' ' ')"; fi
+left=$(grep -rlIE -- "$pattern" $places 2>/dev/null | grep -v '\.as-tmp$' || true)
+if [ "$preview" = 1 ]; then left=$(printf '%s\n' "$left" | grep -Ev "$handled" || true); fi
+left=$(printf '%s\n' "$left" | head -n 10)
+count=$(printf '%s' "$left" | grep -c . || true)
+if [ "$preview" = 0 ]; then printf 'LEFTCOUNT\t%s\n' "$count"
+elif [ "$count" != 0 ]; then printf 'OTHERCOUNT\t%s\n' "$count"; fi
+printf '%s\n' "$left" | while read -r line; do if [ -n "$line" ]; then printf 'LEFT\t%s\n' "$line"; fi; done
+logs=$(grep -rlIE -- "$pattern" /var/log 2>/dev/null | grep -c . || true)
+if [ "$logs" != 0 ]; then printf 'LOGS\t%s\n' "$logs"; fi
 exit 0
 """.replace("__OLD__", old).replace("__NEW__", new).replace("__PREVIEW__", "1" if preview else "0")

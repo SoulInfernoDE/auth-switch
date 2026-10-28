@@ -676,6 +676,20 @@ class GuestAccountTest(unittest.TestCase):
             self.assertEqual(guest.rename("dana", "erin", preview=True), "Account: dana → erin")
         self.assertEqual(run.call_args.args[0], ["sh", "-s"])
 
+    def test_failed_rename_shows_only_the_error(self):
+        guest = self.guest()
+        output = "ACCOUNT\tdana\terin\nGROUP\tdana\terin\nERROR\tsignedin\tdana\n"
+        with mock.patch.object(guest, "system", return_value=guestaccounts.LINUX), mock.patch.object(guest, "run", return_value=(3, output)):
+            with self.assertRaises(core.AuthError) as caught:
+                guest.rename("dana", "erin", preview=False)
+        self.assertEqual(str(caught.exception), "dana is signed in. Sign the account out first, then rename it.")
+
+    def test_only_open_sessions_block_a_linux_rename(self):
+        script = guestaccounts.linux_rename_script("dana", "erin", preview=False)
+        self.assertIn("loginctl show-user \"$old\" -p State --value", script)
+        self.assertIn("active|online) signedin=1", script)
+        self.assertIn("printf 'STOPPED\\n'", script)
+
     def test_report_is_translated_from_tags(self):
         text = guestaccounts.describe("ACCOUNT\tdana\terin\r\nHIVE\tNTUSER.DAT\t74\nLEFTCOUNT\t1\nLEFT\tHKLM\\X\n")
         self.assertEqual(text.splitlines(), ["Account: dana → erin", "Paths in NTUSER.DAT: 74", "Places still naming the old name: 1", "  HKLM\\X"])

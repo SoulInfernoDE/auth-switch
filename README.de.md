@@ -55,14 +55,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.4.1_all.deb
+sudo apt install ./auth-switch_0.4.2_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.1-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.2-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -221,9 +221,12 @@ Linux – und bietet:
   Registry-Eintrag sowie den alten Profilpfad in den Registry-Dateien des
   Benutzers (`NTUSER.DAT`, `UsrClass.dat`) und in der System-Registry. Unter
   Linux: Konto, primäre Gruppe, Home-Verzeichnis, Anzeigename, Crontab,
-  Postfach, untergeordnete IDs und sudo-Regeln (nur übernommen, wenn `visudo`
-  sie akzeptiert). Danach nennt es jede Stelle, die das alte Konto noch nennt.
-  Das Konto muss dafür abgemeldet sein.
+  Postfach, untergeordnete IDs, sudo-Regeln (nur übernommen, wenn `visudo`
+  sie akzeptiert), den alten Home-Pfad in den Einstellungsdateien des Kontos
+  und die Sicherungen der Kontodateien. Danach nennt es jede Stelle, die das
+  alte Konto noch nennt; Protokolldateien werden gezählt, aber nicht
+  verändert. Das Konto muss abgemeldet sein; Programme, die nach dem Abmelden
+  noch laufen, werden beendet.
 - **Computername:** bei VMs zeigt der Dialog den Computernamen des Gastes und
   ob er dem VM-Namen entspricht; **VM-Namen übernehmen …** gibt ihm diesen
   Namen. Windows übernimmt ihn nach einem Neustart, den der Dialog gleich

@@ -54,14 +54,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.4.1_all.deb
+sudo apt install ./auth-switch_0.4.2_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.1-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.2-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -207,9 +207,11 @@ Windows, root and regular users on Linux – and offers:
   registry entry, and the old profile path in the user's registry files
   (`NTUSER.DAT`, `UsrClass.dat`) and in the system registry. On Linux: account,
   primary group, home directory, display name, crontab, mailbox, subordinate
-  ids and sudo rules (only kept if `visudo` accepts them). Afterwards it lists
-  any place that still names the old account. The account has to be signed
-  out.
+  ids, sudo rules (only kept if `visudo` accepts them), the old home path in
+  the account's settings files and the backups of the account files.
+  Afterwards it lists any place that still names the old account; log files
+  are counted but left as they are. The account has to be signed out;
+  programs an ended session left running are stopped.
 - **Computer name:** for VMs the dialog shows the guest's computer name and
   whether it matches the VM name; **Use VM name…** gives it that name. Windows
   takes it after a restart, which the dialog offers right away; names longer
