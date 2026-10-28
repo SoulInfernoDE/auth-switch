@@ -211,7 +211,7 @@ auch ein KI-Assistent mit Shell-Zugriff – ohne Rückfrage als root anmelden; d
 Fenster sagt das in einem hervorgehobenen Hinweis. Der MCP-Server hat kein Tool
 dafür und erfährt nichts davon.
 
-### Benutzerkonten in Gästen
+## Benutzerkonten in Gästen
 
 Jede virtuelle Maschine und jeder Container in dieser Liste hat einen Knopf
 **Benutzerkonten …**. Er listet die Konten, mit denen man sich anmeldet –
@@ -247,7 +247,7 @@ VMs brauchen einen laufenden QEMU-Gast-Agenten. Container haben keinen; sie
 werden mit `pct exec` über den Zugang von **SSH für mein Terminal** erreicht,
 der dafür eingeschaltet sein muss.
 
-### Ein/Aus und Dateien
+## Ein/Aus und Dateien
 
 Neben **Benutzerkonten …** hat jeder Gast in der Liste zwei weitere Knöpfe:
 

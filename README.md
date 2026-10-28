@@ -197,7 +197,7 @@ While access is on, any program running as you – including an AI assistant
 with shell access – can log in as root without asking; the window says so in a
 highlighted note. The MCP server has no tool for it and is not told about it.
 
-### User accounts inside guests
+## User accounts inside guests
 
 Each virtual machine and container in that list has a **User accounts…**
 button. It lists the accounts people sign in with – enabled local users on
@@ -227,7 +227,7 @@ Windows, root and regular users on Linux – and offers:
 VMs need a running QEMU guest agent. Containers have none, so they are reached
 with `pct exec` over the access of **SSH for my terminal**, which must be on.
 
-### Power and files
+## Power and files
 
 Next to **User accounts…**, every guest in the list has two more buttons:
 
