@@ -272,12 +272,17 @@ $sid = $user.SID.Value
 $key = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid"
 $profile = if (Test-Path $key) { (Get-ItemProperty $key).ProfileImagePath } else { $null }
 $newProfile = if ($profile) { Join-Path (Split-Path $profile) $new } else { $null }
+# Without the drive, so "\\?\Volume{…}\Users\name" is found as well as "C:\Users\name".
+$fromPath = if ($profile) { Split-Path $profile -NoQualifier } else { $null }
+$toPath = if ($profile) { Split-Path $newProfile -NoQualifier } else { $null }
 $sessions = @(Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" | ForEach-Object { (Invoke-CimMethod -InputObject $_ -MethodName GetOwner).User }) -contains $old
 if ($sessions -and -not $preview) { "ERROR`tsignedin`t$old"; exit 3 }
 if ($newProfile -and (Test-Path $newProfile)) { "ERROR`tfolder`t$newProfile"; exit 3 }
 
 function Replace-InHive($root, $from, $to, $apply, $recurse = $true) {
     $count = 0
+    # The folder name must end there: "\Users\dana" is not part of "\Users\danawork".
+    $pattern = [regex]::Escape($from) + '(?![A-Za-z0-9._-])'
     $items = @(Get-Item $root)
     if ($recurse) { $items += @(Get-ChildItem $root -Recurse -ErrorAction SilentlyContinue) }
     foreach ($item in $items) {
@@ -286,10 +291,10 @@ function Replace-InHive($root, $from, $to, $apply, $recurse = $true) {
             if ($kind -notin 'String', 'ExpandString', 'MultiString') { continue }
             $value = $item.GetValue($name, $null, 'DoNotExpandEnvironmentNames')
             $text = if ($kind -eq 'MultiString') { $value -join "`n" } else { [string]$value }
-            if ($text -notlike "*$from*") { continue }
+            if ($text -notmatch "(?i)$pattern") { continue }
             $count++
             if ($apply) {
-                $replaced = [regex]::Replace($text, [regex]::Escape($from), $to.Replace('$', '$$'), 'IgnoreCase')
+                $replaced = [regex]::Replace($text, $pattern, $to.Replace('$', '$$'), 'IgnoreCase')
                 $writable = (Get-Item $item.PSPath).OpenSubKey('', $true)
                 if ($kind -eq 'MultiString') { $writable.SetValue($name, [string[]]($replaced -split "`n"), $kind) }
                 else { $writable.SetValue($name, $replaced, $kind) }
@@ -310,7 +315,7 @@ if ($profile) {
         $file = Join-Path $profile $hive[0]
         if (-not (Test-Path $file) -or $sessions) { continue }
         reg.exe load "HKU\$($hive[1])" $file | Out-Null
-        try { $n = Replace-InHive "Registry::HKEY_USERS\$($hive[1])" $profile $newProfile (-not $preview) }
+        try { $n = Replace-InHive "Registry::HKEY_USERS\$($hive[1])" $fromPath $toPath (-not $preview) }
         finally { [gc]::Collect(); Start-Sleep -Milliseconds 300; reg.exe unload "HKU\$($hive[1])" | Out-Null }
         $report += "HIVE`t$($hive[0])`t$n"
     }
@@ -319,19 +324,24 @@ function Find-SystemKeys($text) {
     # Through cmd, so access-denied notes of protected keys stay out of the report.
     @(cmd.exe /c "reg query HKLM\SOFTWARE /f `"$text`" /s /d 2>nul" | Select-String -SimpleMatch 'HKEY_' | ForEach-Object { $_.Line.Trim() })
 }
-$systemKeys = if ($profile) { Find-SystemKeys $profile } else { @() }
+$systemKeys = if ($profile) { Find-SystemKeys $fromPath } else { @() }
 $report += "SYSTEM`t$($systemKeys.Count)"
 if (-not $preview) {
     if ($profile) {
         Rename-Item -LiteralPath $profile -NewName $new
-        foreach ($systemKey in $systemKeys) { $null = Replace-InHive "Registry::$systemKey" $profile $newProfile $true $false }
+        # Windows Search keeps its crawl scopes in memory and would write the old ones back.
+        $search = Get-Service WSearch -ErrorAction SilentlyContinue
+        $searchWasRunning = $search -and $search.Status -eq 'Running' -and ($systemKeys -match 'Windows Search')
+        if ($searchWasRunning) { Stop-Service WSearch -Force }
+        foreach ($systemKey in $systemKeys) { $null = Replace-InHive "Registry::$systemKey" $fromPath $toPath $true $false }
+        if ($searchWasRunning) { Start-Service WSearch }
         Set-ItemProperty $key -Name ProfileImagePath -Value $newProfile
     }
     Rename-LocalUser -Name $old -NewName $new
     if ($user.FullName) { Set-LocalUser -Name $new -FullName $new }
 }
 $left = @()
-if ($profile -and -not $preview) { $left += @(Find-SystemKeys $profile | Select-Object -First 10) }
+if ($profile -and -not $preview) { $left += @(Find-SystemKeys $fromPath | Select-Object -First 10) }
 if (-not $preview) { $report += "LEFTCOUNT`t$($left.Count)" }
 $report += @($left | ForEach-Object { "LEFT`t$_" })
 $report -join "`n"

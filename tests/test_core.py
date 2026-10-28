@@ -684,6 +684,13 @@ class GuestAccountTest(unittest.TestCase):
                 guest.rename("dana", "erin", preview=False)
         self.assertEqual(str(caught.exception), "dana is signed in. Sign the account out first, then rename it.")
 
+    def test_windows_rename_matches_paths_without_drive(self):
+        script = guestaccounts.windows_rename_script("dana", "erin", preview=False)
+        self.assertIn("Split-Path $profile -NoQualifier", script)
+        self.assertIn("[regex]::Escape($from) + '(?![A-Za-z0-9._-])'", script)
+        self.assertIn("Find-SystemKeys $fromPath", script)
+        self.assertIn("Stop-Service WSearch -Force", script)
+
     def test_only_open_sessions_block_a_linux_rename(self):
         script = guestaccounts.linux_rename_script("dana", "erin", preview=False)
         self.assertIn("loginctl show-user \"$old\" -p State --value", script)

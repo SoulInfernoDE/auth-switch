@@ -55,14 +55,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.4.2_all.deb
+sudo apt install ./auth-switch_0.4.3_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.2-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.3-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -219,7 +219,9 @@ Linux – und bietet:
 - **Umbenennen:** zeigt zuerst eine Vorschau und benennt das Konto dann sauber
   um. Unter Windows: Konto, Anzeigename (falls gesetzt), Profilordner samt
   Registry-Eintrag sowie den alten Profilpfad in den Registry-Dateien des
-  Benutzers (`NTUSER.DAT`, `UsrClass.dat`) und in der System-Registry. Unter
+  Benutzers (`NTUSER.DAT`, `UsrClass.dat`) und in der System-Registry, in jeder
+  Schreibweise (auch `\\?\Volume{…}\Users\…`, wie die Windows-Suche sie nutzt).
+  Unter
   Linux: Konto, primäre Gruppe, Home-Verzeichnis, Anzeigename, Crontab,
   Postfach, untergeordnete IDs, sudo-Regeln (nur übernommen, wenn `visudo`
   sie akzeptiert), den alten Home-Pfad in den Einstellungsdateien des Kontos
