@@ -28,8 +28,8 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
   auf den Fingerabdruck festgelegt, den du einmal bestätigt hast
 - Per Schalter festlegen, was ein Token darf – Gäste lesen, benutzen oder
   verwalten, Speicher, Konten, Netzwerke oder Knoten verwalten (Proxmox-VE-Rollen)
-- Einem Token den Zugriff auf einzelne Gäste, Speicher oder Knoten über ein
-  Dropdown im Eintrag verweigern; in derselben Liste Gäste starten,
+- Einem Token den Zugriff auf einzelne Gäste, Speicher oder Knoten über eine
+  Liste neben den Konten verweigern; in derselben Liste Gäste starten,
   herunterfahren, neu starten oder stoppen und Dateien hinein- oder
   herauskopieren
 - Prüft beim Hinzufügen das Abonnement und zeigt, ob der Server das
@@ -57,14 +57,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.4.4_all.deb
+sudo apt install ./auth-switch_0.4.5_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.4-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.5-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -100,14 +100,16 @@ Dialog hin.
 
 ### Zugriff auf einzelne Gäste
 
-Der Schloss-Knopf im Eintrag eines Kontos öffnet ein Dropdown mit allen
-virtuellen Maschinen, Containern, Speichern und Knoten des Clusters.
+Der Schloss-Knopf im Eintrag eines Kontos öffnet rechts im Fenster eine Liste
+mit allen virtuellen Maschinen, Containern, Speichern und Knoten des Clusters.
 Ausschalten verweigert dem Token den Zugriff darauf mit der Rolle *NoAccess*,
 die weiter gefasste Rechte wie eine Rolle auf `/` übersteuert; Einschalten
 entfernt diesen Eintrag wieder. Wie bei den Rollen geschieht das mit einem
-anderen Konto des Servers, auswählbar unten im Dropdown. Das Dropdown zeigt,
-ob ein Gast läuft, und bleibt offen, solange daraus gestartete Dialoge zu sehen
-sind; ein Klick daneben oder Escape schließt es.
+anderen Konto des Servers, auswählbar unten in der Liste. Die Liste zeigt, ob
+ein Gast läuft, und bleibt offen, während du mit ihr arbeitest – Dialoge
+erscheinen darüber. Das Fenster wird um die Liste breiter und wieder schmaler,
+wenn sie sich schließt: mit ihrem Schließen-Knopf, dem Schloss-Knopf, einem
+Klick auf die Konten oder Escape.
 
 Der MCP-Server hält sich zusätzlich selbst an diese Sperren: Er lehnt Aufrufe
 ab, die einen gesperrten Gast, Speicher oder Knoten betreffen, und lässt sie in
@@ -211,7 +213,7 @@ dafür und erfährt nichts davon.
 
 ### Benutzerkonten in Gästen
 
-Jede virtuelle Maschine und jeder Container in diesem Dropdown hat einen Knopf
+Jede virtuelle Maschine und jeder Container in dieser Liste hat einen Knopf
 **Benutzerkonten …**. Er listet die Konten, mit denen man sich anmeldet –
 aktivierte lokale Benutzer unter Windows, root und reguläre Benutzer unter
 Linux – und bietet:
@@ -247,11 +249,11 @@ der dafür eingeschaltet sein muss.
 
 ### Ein/Aus und Dateien
 
-Neben **Benutzerkonten …** hat jeder Gast im Dropdown zwei weitere Knöpfe:
+Neben **Benutzerkonten …** hat jeder Gast in der Liste zwei weitere Knöpfe:
 
 - **Starten, Herunterfahren …:** Ein ausgeschalteter Gast lässt sich starten,
   ein laufender herunterfahren oder neu starten – beides bittet das System im
-  Gast darum – oder sofort stoppen wie bei einem Stromausfall. Das Dropdown
+  Gast darum – oder sofort stoppen wie bei einem Stromausfall. Die Liste
   zeigt danach den neuen Zustand.
 - **Dateien übertragen …:** kopiert Dateien in einen Ordner des Gastes (auch
   mehrere auf einmal) oder eine Datei aus ihm an einen Ort deiner Wahl.

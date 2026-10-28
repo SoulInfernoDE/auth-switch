@@ -72,7 +72,20 @@ class Window(Adw.ApplicationWindow):
         self.stack = Gtk.Stack()
         self.stack.add_named(self.page, "accounts")
         self.stack.add_named(self.status, "status")
-        self.toasts = Adw.ToastOverlay(child=self.stack)
+        # The guest list opens beside the accounts, so dialogs started from it never end up behind it.
+        self.split = Adw.OverlaySplitView(
+            content=self.stack, sidebar_position=Gtk.PackType.END, show_sidebar=False, collapsed=False,
+            min_sidebar_width=440, max_sidebar_width=520, sidebar_width_fraction=0.55,
+        )
+        self.access_for = None
+        self.narrow_width = None
+        beside = Gtk.GestureClick(button=0, propagation_phase=Gtk.PropagationPhase.CAPTURE)
+        beside.connect("pressed", self.on_click_beside_access)
+        self.stack.add_controller(beside)
+        escape = Gtk.EventControllerKey()
+        escape.connect("key-pressed", lambda _c, key, _code, _state: key == Gdk.KEY_Escape and self.split.get_show_sidebar() and (self.hide_access() or True))
+        self.add_controller(escape)
+        self.toasts = Adw.ToastOverlay(child=self.split)
 
         self.update_banner = Adw.Banner(button_label=_("Show"))
         self.update_banner.connect("button-clicked", lambda *_args: self.open_uri(self.update_url))
@@ -235,12 +248,12 @@ class Window(Adw.ApplicationWindow):
             item = Gio.MenuItem.new(label, None)
             item.set_action_and_target_value(action, value)
             menu.append_item(item)
-        access = Gtk.MenuButton(
+        access = Gtk.Button(
             icon_name="changes-prevent-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Access to guests and storage")
         )
         access.add_css_class("flat")
-        access.set_popover(self.build_access_popover(account))
-        self.keep_open(access.get_popover(), access)
+        access.opens_access = True
+        access.connect("clicked", lambda _b, a=account: self.show_access(a))
         row.add_suffix(access)
         more = Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, valign=Gtk.Align.CENTER)
         more.add_css_class("flat")
@@ -338,23 +351,29 @@ class Window(Adw.ApplicationWindow):
 
     # --- permissions ------------------------------------------------------
 
-    def build_access_popover(self, account: core.Account) -> Gtk.Popover:
-        """Drop-down with one switch per guest, storage and node; off means the token is denied access."""
+    def build_access_panel(self, account: core.Account) -> Gtk.Widget:
+        """Side pane with one switch per guest, storage and node; off means the token is denied access."""
         managers = core.managers_for(account.host, account.token_id)
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=6, margin_bottom=6, margin_start=6, margin_end=6)
-        heading = Gtk.Label(label=_("Access for {token}").format(token=account.token_id), xalign=0)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=12, margin_bottom=12, margin_start=12, margin_end=12)
+        heading = Gtk.Label(label=_("Access for {token}").format(token=account.token_id), xalign=0, hexpand=True, wrap=True)
         heading.add_css_class("heading")
+        close = Gtk.Button(icon_name="window-close-symbolic", tooltip_text=_("Close"), valign=Gtk.Align.START)
+        close.add_css_class("flat")
+        close.connect("clicked", lambda *_a: self.hide_access())
+        top = Gtk.Box(spacing=6)
+        top.append(heading)
+        top.append(close)
         hint = Gtk.Label(label=_("Switched off means no access, even if broader rights would allow it."), xalign=0, wrap=True, max_width_chars=40)
         hint.add_css_class("dim-label")
         status = Gtk.Label(xalign=0, wrap=True, max_width_chars=40)
         rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         rows.add_css_class("boxed-list")
-        scrolled = Gtk.ScrolledWindow(child=rows, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True, max_content_height=420, min_content_width=440)
+        rows.set_valign(Gtk.Align.START)
+        scrolled = Gtk.ScrolledWindow(child=rows, hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
         chooser = Gtk.DropDown(model=Gtk.StringList.new([a.token_id for a in managers]), tooltip_text=_("Change with"))
         chooser.set_visible(len(managers) > 1)
-        for widget in (heading, hint, status, scrolled, chooser):
+        for widget in (top, hint, status, scrolled, chooser):
             box.append(widget)
-        popover = Gtk.Popover(child=box)
         icons = {"qemu": "computer-symbolic", "lxc": "package-x-generic-symbolic", "storage": "drive-harddisk-symbolic", "node": "network-server-symbolic"}
         kinds = {"qemu": _("Virtual machine"), "lxc": _("Container"), "storage": _("Storage"), "node": _("Node")}
 
@@ -457,29 +476,42 @@ class Window(Adw.ApplicationWindow):
 
             run_async(fetch, loaded)
 
-        popover.connect("show", load)
         chooser.connect("notify::selected", load)
-        return popover
+        load()
+        return box
 
-    def keep_open(self, popover: Gtk.Popover, button: Gtk.MenuButton) -> None:
-        """Keep a drop-down open while dialogs started from it are shown; a click beside it closes it."""
-        popover.set_autohide(False)
-        if not hasattr(self, "sticky"):
-            self.sticky = []
-            click = Gtk.GestureClick(button=0, propagation_phase=Gtk.PropagationPhase.CAPTURE)
-            click.connect("pressed", self.close_sticky)
-            self.add_controller(click)
-        self.sticky.append((popover, button))
-        keys = Gtk.EventControllerKey()
-        keys.connect("key-pressed", lambda _c, key, _code, _state: key == Gdk.KEY_Escape and (popover.popdown() or True))
-        popover.add_controller(keys)
+    def show_access(self, account: core.Account) -> None:
+        """Open the guest list of an account beside the accounts; its lock button closes it again."""
+        key = (account.host, account.token_id)
+        if self.split.get_show_sidebar() and self.access_for == key:
+            self.hide_access()
+            return
+        self.access_for = key
+        self.split.set_sidebar(self.build_access_panel(account))
+        if not self.split.get_show_sidebar() and not self.is_maximized():
+            # Wider by the pane, so the accounts keep their room.
+            self.narrow_width = self.get_width()
+            self.set_default_size(self.narrow_width + 480, self.get_height())
+        self.split.set_show_sidebar(True)
 
-    def close_sticky(self, _gesture, _count, x, y) -> None:
-        # Clicks inside a drop-down reach its own surface, never the window: anything here is beside it.
-        picked = self.pick(x, y, Gtk.PickFlags.DEFAULT)
-        for popover, button in self.sticky:
-            if popover.get_visible() and not (picked and picked.is_ancestor(button) or picked is button):
-                popover.popdown()
+    def hide_access(self) -> None:
+        self.split.set_show_sidebar(False)
+        self.access_for = None
+        width, self.narrow_width = self.narrow_width, None
+        if width and not self.is_maximized():
+            # After the pane has slid away; while it moves, the window cannot be narrower.
+            GLib.timeout_add(400, lambda: self.narrow_width is None and self.set_default_size(width, self.get_height()) and False)
+
+    def on_click_beside_access(self, _gesture, _count, x, y) -> None:
+        """A click in the accounts closes the guest list – unless it is on a lock button, which switches lists."""
+        if not self.split.get_show_sidebar():
+            return
+        widget = self.stack.pick(x, y, Gtk.PickFlags.DEFAULT)
+        while widget is not None:
+            if getattr(widget, "opens_access", False):
+                return
+            widget = widget.get_parent()
+        self.hide_access()
 
     # --- user accounts inside a guest ------------------------------------------
 
