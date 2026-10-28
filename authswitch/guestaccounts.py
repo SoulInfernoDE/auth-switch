@@ -1,5 +1,7 @@
 """User accounts inside guests: list them, change a password, rename one without leaving the old name behind.
 
+The guest's computer name can also be set to its VM name.
+
 Virtual machines are reached through the QEMU guest agent, containers through
 ``pct exec`` over the SSH access of "SSH for my terminal". Passwords never
 appear on a command line inside the guest: VMs use the agent's own
@@ -20,6 +22,10 @@ from .i18n import _
 WINDOWS, LINUX = "windows", "linux"
 # Windows allows at most 20 characters; the same set is safe for Linux and for embedding in scripts.
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9._-]{0,19}")
+_LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+HOSTNAME = re.compile(rf"{_LABEL}(?:\.{_LABEL})*")
+# Older Windows network services (NetBIOS) only see this many characters of a computer name.
+NETBIOS_LENGTH = 15
 
 
 class Guest:
@@ -130,6 +136,91 @@ class Guest:
         if status != 0:
             raise core.AuthError(report or output.strip()[-600:] or _("The rename failed."))
         return report
+
+    # --- computer name ------------------------------------------------------
+
+    def computer_name(self) -> dict | None:
+        """The guest's computer name next to the one it should carry, its VM name; None for containers.
+
+        Proxmox VE itself sets a container's host name, so only VMs can drift apart from their name.
+        """
+        if self.kind == "lxc":
+            return None
+        vm = str(self._api("GET", "/config").get("name") or "")
+        system = self.system()
+        if system == WINDOWS:
+            status, output = self.run(["powershell.exe", "-NoProfile", "-Command", WINDOWS_NAME_QUERY])
+            found = [line.rstrip("\r").split("\t") for line in output.splitlines() if line.startswith("NAME\t")]
+            if status != 0 or not found:
+                raise core.AuthError(_("The computer name could not be read."))
+            current = found[0][1]
+            pending = found[0][2] if len(found[0]) > 2 and found[0][2] else current
+        else:
+            current = pending = self._api("GET", "/agent/get-host-name").get("result", {}).get("host-name", "")
+        return {"system": system, "vm": vm, "current": current, "pending": pending, "target": computer_name_for(vm, system)}
+
+    def set_computer_name(self, name: str) -> bool:
+        """Give the guest this computer name; True when it only takes effect after a restart."""
+        if not name or computer_name_for(name, LINUX) != name:
+            raise core.AuthError(_("This is no valid computer name."))
+        if self.system() == WINDOWS:
+            script = windows_computer_name_script(name)
+            encoded = base64.b64encode(script.encode("utf-16-le")).decode()
+            status, output = self.run(["powershell.exe", "-NoProfile", "-EncodedCommand", encoded], timeout=120)
+            restart = True
+        else:
+            status, output = self.run(["sh", "-s"], stdin=linux_computer_name_script(name), timeout=120)
+            restart = False
+        if status != 0:
+            raise core.AuthError(_("The computer name could not be changed: {detail}").format(detail=output.strip()[-300:]))
+        return restart
+
+    def restart(self) -> None:
+        self._api("POST", "/status/reboot", {"timeout": 300})
+
+
+def computer_name_for(vm_name: str, system: str) -> str:
+    """The computer name a guest should carry: its VM name, on Windows the part before the first dot; empty if unusable."""
+    name = vm_name.split(".")[0] if system == WINDOWS else vm_name
+    if len(name) > 63 or not HOSTNAME.fullmatch(name) or name.replace(".", "").isdigit():
+        return ""
+    return name
+
+
+# The pending name ("NV Hostname") differs from the current one until Windows restarts after a rename.
+WINDOWS_NAME_QUERY = (
+    "$ProgressPreference = 'SilentlyContinue'; "
+    "$p = Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters'; "
+    "\"NAME`t$($p.Hostname)`t$($p.'NV Hostname')\""
+)
+
+
+def windows_computer_name_script(name: str) -> str:
+    return r"""$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'
+Rename-Computer -NewName '__NAME__' -Force -WarningAction SilentlyContinue
+""".replace("__NAME__", name)
+
+
+def linux_computer_name_script(name: str) -> str:
+    """sh: host name, and the old name in the 127.0.1.1 line of /etc/hosts."""
+    return r"""set -e
+new='__NAME__'
+old=$(hostname 2>/dev/null || cat /etc/hostname)
+if command -v hostnamectl >/dev/null 2>&1 && hostnamectl set-hostname "$new" 2>/dev/null; then :
+else printf '%s\n' "$new" > /etc/hostname; hostname "$new" 2>/dev/null || true; fi
+if [ -f /etc/hosts ]; then
+    escaped=$(printf '%s' "$new" | sed 's/[.]/\\./g')
+    # The full name first, then its short form, as in "127.0.1.1 host.example.com host".
+    for pair in "$old $new" "${old%%.*} ${new%%.*}"; do
+        set -- $pair
+        [ -n "$1" ] && [ "$1" != "$2" ] || continue
+        pattern=$(printf '%s' "$1" | sed 's/[.]/\\./g')
+        sed -i "/^127\.0\.1\.1[[:space:]]/s/\([[:space:]]\)$pattern\([[:space:]]\|\$\)/\1$2\2/g" /etc/hosts
+    done
+    grep -q "^127\.0\.1\.1[[:space:]]\(.*[[:space:]]\)\{0,1\}$escaped\([[:space:]]\|\$\)" /etc/hosts || printf '127.0.1.1\t%s\n' "$new" >> /etc/hosts
+fi
+exit 0
+""".replace("__NAME__", name)
 
 
 def describe(output: str) -> str:

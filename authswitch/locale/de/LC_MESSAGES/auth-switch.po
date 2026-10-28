@@ -290,17 +290,17 @@ msgstr "Task auf {node} fehlgeschlagen: {status}"
 msgid "Task on {node} did not finish in time."
 msgstr "Task auf {node} wurde nicht rechtzeitig fertig."
 
-#: authswitch/guestaccounts.py:47 authswitch/guestaccounts.py:81
+#: authswitch/guestaccounts.py:53 authswitch/guestaccounts.py:87
 msgid ""
 "The guest agent does not answer; is the VM running with the agent installed?"
 msgstr ""
 "Der Gast-Agent antwortet nicht; läuft die VM und ist der Agent installiert?"
 
-#: authswitch/guestaccounts.py:61 authswitch/guestaccounts.py:72
+#: authswitch/guestaccounts.py:67 authswitch/guestaccounts.py:78
 msgid "The command in the guest did not finish in time."
 msgstr "Der Befehl im Gast wurde nicht rechtzeitig fertig."
 
-#: authswitch/guestaccounts.py:67
+#: authswitch/guestaccounts.py:73
 msgid ""
 "Containers are reached over SSH; switch on \"SSH for my terminal\" for this "
 "server first."
@@ -308,16 +308,16 @@ msgstr ""
 "Container werden über SSH erreicht; schalte für diesen Server zuerst „SSH "
 "für mein Terminal“ ein."
 
-#: authswitch/guestaccounts.py:110
+#: authswitch/guestaccounts.py:116
 msgid "This user name cannot be handled here."
 msgstr "Dieser Benutzername kann hier nicht verarbeitet werden."
 
-#: authswitch/guestaccounts.py:116
+#: authswitch/guestaccounts.py:122
 #, python-brace-format
 msgid "The password could not be changed: {detail}"
 msgstr "Das Passwort konnte nicht geändert werden: {detail}"
 
-#: authswitch/guestaccounts.py:122
+#: authswitch/guestaccounts.py:128
 msgid ""
 "Names may contain letters, digits, dot, dash and underscore, at most 20 "
 "characters."
@@ -325,79 +325,92 @@ msgstr ""
 "Namen dürfen Buchstaben, Ziffern, Punkt, Bindestrich und Unterstrich "
 "enthalten, höchstens 20 Zeichen."
 
-#: authswitch/guestaccounts.py:131
+#: authswitch/guestaccounts.py:137
 msgid "The rename failed."
 msgstr "Das Umbenennen ist fehlgeschlagen."
 
-#: authswitch/guestaccounts.py:138
+#: authswitch/guestaccounts.py:155
+msgid "The computer name could not be read."
+msgstr "Der Computername konnte nicht gelesen werden."
+
+#: authswitch/guestaccounts.py:165
+msgid "This is no valid computer name."
+msgstr "Das ist kein gültiger Computername."
+
+#: authswitch/guestaccounts.py:175
+#, python-brace-format
+msgid "The computer name could not be changed: {detail}"
+msgstr "Der Computername konnte nicht geändert werden: {detail}"
+
+#: authswitch/guestaccounts.py:229
 #, python-brace-format
 msgid "Account: {0} → {1}"
 msgstr "Konto: {0} → {1}"
 
-#: authswitch/guestaccounts.py:139
+#: authswitch/guestaccounts.py:230
 #, python-brace-format
 msgid "Display name: {0} → {1}"
 msgstr "Anzeigename: {0} → {1}"
 
-#: authswitch/guestaccounts.py:140
+#: authswitch/guestaccounts.py:231
 #, python-brace-format
 msgid "Profile folder: {0} → {1}"
 msgstr "Profilordner: {0} → {1}"
 
-#: authswitch/guestaccounts.py:141
+#: authswitch/guestaccounts.py:232
 #, python-brace-format
 msgid "Group: {0} → {1}"
 msgstr "Gruppe: {0} → {1}"
 
-#: authswitch/guestaccounts.py:142
+#: authswitch/guestaccounts.py:233
 #, python-brace-format
 msgid "Paths in {0}: {1}"
 msgstr "Pfade in {0}: {1}"
 
-#: authswitch/guestaccounts.py:143
+#: authswitch/guestaccounts.py:234
 #, python-brace-format
 msgid "Paths elsewhere in the system registry: {0}"
 msgstr "Pfade an anderer Stelle in der System-Registry: {0}"
 
-#: authswitch/guestaccounts.py:144
+#: authswitch/guestaccounts.py:235
 #, python-brace-format
 msgid "Entry in {0}"
 msgstr "Eintrag in {0}"
 
-#: authswitch/guestaccounts.py:145
+#: authswitch/guestaccounts.py:236
 msgid "Scheduled jobs (crontab) move along"
 msgstr "Geplante Aufgaben (crontab) werden mitgenommen"
 
-#: authswitch/guestaccounts.py:146
+#: authswitch/guestaccounts.py:237
 msgid "Mailbox moves along"
 msgstr "Postfach wird mitgenommen"
 
-#: authswitch/guestaccounts.py:147
+#: authswitch/guestaccounts.py:238
 #, python-brace-format
 msgid "Left unchanged because the check failed: {0}"
 msgstr "Unverändert gelassen, weil die Prüfung fehlschlug: {0}"
 
-#: authswitch/guestaccounts.py:148
+#: authswitch/guestaccounts.py:239
 #, python-brace-format
 msgid "Places still naming the old name: {0}"
 msgstr "Stellen, die noch den alten Namen nennen: {0}"
 
-#: authswitch/guestaccounts.py:152
+#: authswitch/guestaccounts.py:243
 #, python-brace-format
 msgid "An account named {0} already exists."
 msgstr "Ein Konto namens {0} gibt es bereits."
 
-#: authswitch/guestaccounts.py:153
+#: authswitch/guestaccounts.py:244
 #, python-brace-format
 msgid "{0} is signed in. Sign the account out first, then rename it."
 msgstr "{0} ist angemeldet. Melde das Konto zuerst ab und benenne es dann um."
 
-#: authswitch/guestaccounts.py:154
+#: authswitch/guestaccounts.py:245
 #, python-brace-format
 msgid "The folder {0} already exists."
 msgstr "Der Ordner {0} existiert bereits."
 
-#: authswitch/guestaccounts.py:155
+#: authswitch/guestaccounts.py:246
 #, python-brace-format
 msgid "There is no account {0}."
 msgstr "Es gibt kein Konto {0}."
@@ -417,7 +430,7 @@ msgstr ""
 "Privilegien“; sonst erteile ihm von einem anderen Konto aus mit "
 "„Berechtigungen …“ eine Rolle."
 
-#: authswitch/gui.py:57 authswitch/gui.py:177 authswitch/gui.py:733
+#: authswitch/gui.py:57 authswitch/gui.py:177 authswitch/gui.py:822
 msgid "Add account"
 msgstr "Konto hinzufügen"
 
@@ -433,8 +446,8 @@ msgstr "Info"
 msgid "Show"
 msgstr "Anzeigen"
 
-#: authswitch/gui.py:118 authswitch/gui.py:483 authswitch/gui.py:965
-#: authswitch/gui.py:1155 authswitch/gui.py:1280
+#: authswitch/gui.py:118 authswitch/gui.py:493 authswitch/gui.py:1054
+#: authswitch/gui.py:1244 authswitch/gui.py:1369
 msgid "Close"
 msgstr "Schließen"
 
@@ -462,7 +475,7 @@ msgstr "Zertifikat von dir bestätigt"
 msgid "Certificate trusted by the system"
 msgstr "Zertifikat vom System als vertrauenswürdig eingestuft"
 
-#: authswitch/gui.py:202 authswitch/gui.py:231 authswitch/gui.py:679
+#: authswitch/gui.py:202 authswitch/gui.py:231 authswitch/gui.py:768
 msgid "Open web interface"
 msgstr "Weboberfläche öffnen"
 
@@ -490,7 +503,7 @@ msgstr "SSH für mein Terminal …"
 msgid "Enter secret again"
 msgstr "Geheimnis erneut eingeben"
 
-#: authswitch/gui.py:233 authswitch/gui.py:321 authswitch/gui.py:1153
+#: authswitch/gui.py:233 authswitch/gui.py:321 authswitch/gui.py:1242
 msgid "Remove"
 msgstr "Entfernen"
 
@@ -514,7 +527,7 @@ msgstr "Neu eingeben"
 msgid "Server not reachable"
 msgstr "Server nicht erreichbar"
 
-#: authswitch/gui.py:274 authswitch/gui.py:1243
+#: authswitch/gui.py:274 authswitch/gui.py:1332
 #, python-brace-format
 msgid "Proxmox VE {version}"
 msgstr "Proxmox VE {version}"
@@ -563,10 +576,10 @@ msgstr ""
 "bleibt auf {host} gültig; widerrufe es in der Weboberfläche, wenn du es "
 "nicht mehr brauchst."
 
-#: authswitch/gui.py:320 authswitch/gui.py:510 authswitch/gui.py:551
-#: authswitch/gui.py:577 authswitch/gui.py:651 authswitch/gui.py:740
-#: authswitch/gui.py:803 authswitch/gui.py:1002 authswitch/gui.py:1096
-#: authswitch/gui.py:1382
+#: authswitch/gui.py:320 authswitch/gui.py:550 authswitch/gui.py:599
+#: authswitch/gui.py:640 authswitch/gui.py:666 authswitch/gui.py:740
+#: authswitch/gui.py:829 authswitch/gui.py:892 authswitch/gui.py:1091
+#: authswitch/gui.py:1185 authswitch/gui.py:1471
 msgid "Cancel"
 msgstr "Abbrechen"
 
@@ -590,7 +603,7 @@ msgstr ""
 "Ausgeschaltet heißt kein Zugriff, auch wenn weiter gefasste Rechte ihn "
 "erlauben würden."
 
-#: authswitch/gui.py:352 authswitch/gui.py:634
+#: authswitch/gui.py:352 authswitch/gui.py:723
 msgid "Change with"
 msgstr "Ändern mit"
 
@@ -669,75 +682,173 @@ msgstr "Wird geladen …"
 msgid "Reading the accounts of {guest}…"
 msgstr "Konten von {guest} werden gelesen …"
 
-#: authswitch/gui.py:464 authswitch/gui.py:466
+#: authswitch/gui.py:472 authswitch/gui.py:474
 msgid "Accounts could not be read"
 msgstr "Konten konnten nicht gelesen werden"
 
-#: authswitch/gui.py:466
+#: authswitch/gui.py:474
 msgid "No account to sign in with was found."
 msgstr "Es wurde kein Konto zum Anmelden gefunden."
 
-#: authswitch/gui.py:474
+#: authswitch/gui.py:482
 msgid "Account"
 msgstr "Konto"
 
-#: authswitch/gui.py:480
+#: authswitch/gui.py:488
 #, python-brace-format
 msgid "User accounts in {guest}"
 msgstr "Benutzerkonten in {guest}"
 
-#: authswitch/gui.py:481
+#: authswitch/gui.py:489
 msgid "Changes an account inside the guest directly; the VM must be running."
 msgstr "Ändert ein Konto direkt im Gast; die VM muss laufen."
 
-#: authswitch/gui.py:484
+#: authswitch/gui.py:494
 msgid "Rename…"
 msgstr "Umbenennen …"
 
-#: authswitch/gui.py:485
+#: authswitch/gui.py:495
 msgid "Change password…"
 msgstr "Passwort ändern …"
 
-#: authswitch/gui.py:499
+#: authswitch/gui.py:517
+msgid "Computer name"
+msgstr "Computername"
+
+#: authswitch/gui.py:519
+#, python-brace-format
+msgid "The VM name {name} is no valid computer name."
+msgstr "Der VM-Name {name} ist kein gültiger Computername."
+
+#: authswitch/gui.py:522
+msgid "Matches the VM name"
+msgstr "Entspricht dem VM-Namen"
+
+#: authswitch/gui.py:525
+#, python-brace-format
+msgid "{current} → {new} after a restart"
+msgstr "{current} → {new} nach einem Neustart"
+
+#: authswitch/gui.py:526
+msgid "Restart…"
+msgstr "Neu starten …"
+
+#: authswitch/gui.py:528
+msgid "Use VM name…"
+msgstr "VM-Namen übernehmen …"
+
+#: authswitch/gui.py:539
+msgid ""
+"Windows uses the new name after a restart. A restart signs out everyone who "
+"is signed in."
+msgstr ""
+"Windows verwendet den neuen Namen nach einem Neustart. Ein Neustart meldet "
+"alle angemeldeten Benutzer ab."
+
+#: authswitch/gui.py:541
+#, python-brace-format
+msgid ""
+"Older Windows network services only see the first {count} characters: {short}"
+msgstr ""
+"Ältere Windows-Netzwerkdienste sehen nur die ersten {count} Zeichen: {short}"
+
+#: authswitch/gui.py:544
+msgid ""
+"Sets the host name and the matching line in /etc/hosts; no restart is needed."
+msgstr ""
+"Setzt den Hostnamen und die passende Zeile in /etc/hosts; ein Neustart ist "
+"nicht nötig."
+
+#: authswitch/gui.py:546
+#, python-brace-format
+msgid "Restart {guest}?"
+msgstr "{guest} neu starten?"
+
+#: authswitch/gui.py:548
+#, python-brace-format
+msgid "Rename the computer {current} to {new}?"
+msgstr "Computer {current} in {new} umbenennen?"
+
+#: authswitch/gui.py:552
+msgid "Rename only"
+msgstr "Nur umbenennen"
+
+#: authswitch/gui.py:554
+msgid "Rename and restart"
+msgstr "Umbenennen und neu starten"
+
+#: authswitch/gui.py:554
+msgid "Restart now"
+msgstr "Jetzt neu starten"
+
+#: authswitch/gui.py:557 authswitch/gui.py:667
+msgid "Rename"
+msgstr "Umbenennen"
+
+#: authswitch/gui.py:569
+#, python-brace-format
+msgid "Changing the computer name of {guest}…"
+msgstr "Computername von {guest} wird geändert …"
+
+#: authswitch/gui.py:574
+msgid "The computer name could not be changed"
+msgstr "Der Computername konnte nicht geändert werden"
+
+#: authswitch/gui.py:576
+#, python-brace-format
+msgid "{guest} is called {name} after the next restart"
+msgstr "{guest} heißt nach dem nächsten Neustart {name}"
+
+#: authswitch/gui.py:578
+#, python-brace-format
+msgid "{guest} restarts as {name}"
+msgstr "{guest} startet als {name} neu"
+
+#: authswitch/gui.py:580
+#, python-brace-format
+msgid "The computer name is now {name}"
+msgstr "Der Computername ist jetzt {name}"
+
+#: authswitch/gui.py:588
 msgid "New password"
 msgstr "Neues Passwort"
 
-#: authswitch/gui.py:500
+#: authswitch/gui.py:589
 msgid "Repeat the new password"
 msgstr "Neues Passwort wiederholen"
 
-#: authswitch/gui.py:507
+#: authswitch/gui.py:596
 #, python-brace-format
 msgid "New password for {user}"
 msgstr "Neues Passwort für {user}"
 
-#: authswitch/gui.py:508
+#: authswitch/gui.py:597
 msgid "Takes effect at the next sign-in. Auth-Switch does not store it."
 msgstr "Gilt ab der nächsten Anmeldung. Auth-Switch speichert es nicht."
 
-#: authswitch/gui.py:511
+#: authswitch/gui.py:600
 msgid "Change password"
 msgstr "Passwort ändern"
 
-#: authswitch/gui.py:523
+#: authswitch/gui.py:612
 msgid "The password could not be changed"
 msgstr "Das Passwort konnte nicht geändert werden"
 
-#: authswitch/gui.py:525
+#: authswitch/gui.py:614
 #, python-brace-format
 msgid "Password of {user} changed"
 msgstr "Passwort von {user} geändert"
 
-#: authswitch/gui.py:538
+#: authswitch/gui.py:627
 msgid "New account name"
 msgstr "Neuer Kontoname"
 
-#: authswitch/gui.py:544
+#: authswitch/gui.py:633
 #, python-brace-format
 msgid "Rename {user}"
 msgstr "{user} umbenennen"
 
-#: authswitch/gui.py:546
+#: authswitch/gui.py:635
 msgid ""
 "Renames the account, its display name and its profile folder, and replaces "
 "the old profile path in the registry or configuration. The account must be "
@@ -747,63 +858,59 @@ msgstr ""
 "ersetzt den alten Profilpfad in Registry bzw. Konfiguration. Das Konto muss "
 "abgemeldet sein. Vorher siehst du eine Vorschau."
 
-#: authswitch/gui.py:552
+#: authswitch/gui.py:641
 msgid "Preview"
 msgstr "Vorschau"
 
-#: authswitch/gui.py:566
+#: authswitch/gui.py:655
 #, python-brace-format
 msgid "Looking for every place that names {user}…"
 msgstr "Alle Stellen, die {user} nennen, werden gesucht …"
 
-#: authswitch/gui.py:571
+#: authswitch/gui.py:660
 msgid "The rename is not possible"
 msgstr "Umbenennen ist nicht möglich"
 
-#: authswitch/gui.py:574
+#: authswitch/gui.py:663
 #, python-brace-format
 msgid "Rename {old} to {new}?"
 msgstr "{old} in {new} umbenennen?"
 
-#: authswitch/gui.py:575
+#: authswitch/gui.py:664
 msgid "This would change:"
 msgstr "Das würde sich ändern:"
 
-#: authswitch/gui.py:578
-msgid "Rename"
-msgstr "Umbenennen"
-
-#: authswitch/gui.py:584
+#: authswitch/gui.py:673
 msgid "The rename failed"
 msgstr "Das Umbenennen ist fehlgeschlagen"
 
-#: authswitch/gui.py:586
+#: authswitch/gui.py:675
 #, python-brace-format
 msgid "{old} is now {new}"
 msgstr "{old} heißt jetzt {new}"
 
-#: authswitch/gui.py:587
+#: authswitch/gui.py:676
 msgid "Sign in with the new name from now on, also in Remmina."
 msgstr "Melde dich ab jetzt mit dem neuen Namen an, auch in Remmina."
 
-#: authswitch/gui.py:593
+#: authswitch/gui.py:682
 #, python-brace-format
 msgid "Renaming {user}…"
 msgstr "{user} wird umbenannt …"
 
-#: authswitch/gui.py:607
+#: authswitch/gui.py:696
 msgid "Reading permissions…"
 msgstr "Berechtigungen werden gelesen …"
 
-#: authswitch/gui.py:615
+#: authswitch/gui.py:704
 msgid "Try again with another account of this server."
 msgstr "Versuche es mit einem anderen Konto dieses Servers erneut."
 
-#: authswitch/gui.py:616
+#: authswitch/gui.py:705
 msgid "Permissions could not be read"
 msgstr "Berechtigungen konnten nicht gelesen werden"
 
-#: authswitch/gui.py:640
+#: authswitch/gui.py:729
 #, python-brace-format
 msgid ""
 "Roles for {token} on the whole server (path /). Rights on other paths stay "
@@ -814,7 +921,7 @@ msgstr ""
 "bleiben unverändert. Zum Ändern braucht es ein Konto, das Berechtigungen "
 "ändern darf, etwa ein Token von root@pam."
 
-#: authswitch/gui.py:645
+#: authswitch/gui.py:734
 msgid ""
 "This token has no privilege separation, so it holds all rights of its user "
 "and these roles have no effect. Turn on privilege separation in the web "
@@ -824,61 +931,61 @@ msgstr ""
 "Benutzers, und diese Rollen wirken nicht. Schalte die Privilegientrennung in "
 "der Weboberfläche ein, um es zu begrenzen."
 
-#: authswitch/gui.py:649
+#: authswitch/gui.py:738
 msgid "Permissions"
 msgstr "Berechtigungen"
 
-#: authswitch/gui.py:652
+#: authswitch/gui.py:741
 msgid "Apply"
 msgstr "Übernehmen"
 
-#: authswitch/gui.py:657
+#: authswitch/gui.py:746
 msgid "Permissions could not be changed"
 msgstr "Berechtigungen konnten nicht geändert werden"
 
-#: authswitch/gui.py:659
+#: authswitch/gui.py:748
 #, python-brace-format
 msgid "Permissions of {token} changed"
 msgstr "Berechtigungen von {token} geändert"
 
-#: authswitch/gui.py:676
+#: authswitch/gui.py:765
 msgid "Server address, e.g. pve.example.com"
 msgstr "Serveradresse, z. B. pve.example.com"
 
-#: authswitch/gui.py:677
+#: authswitch/gui.py:766
 msgid "API token ID, e.g. root@pam!auth-switch"
 msgstr "API-Token-ID, z. B. root@pam!auth-switch"
 
-#: authswitch/gui.py:678
+#: authswitch/gui.py:767
 msgid "Secret"
 msgstr "Geheimnis"
 
-#: authswitch/gui.py:683
+#: authswitch/gui.py:772
 msgid "Servers in your network"
 msgstr "Server in deinem Netzwerk"
 
-#: authswitch/gui.py:684
+#: authswitch/gui.py:773
 msgid "Search again"
 msgstr "Erneut suchen"
 
-#: authswitch/gui.py:705
+#: authswitch/gui.py:794
 msgid "(already added)"
 msgstr "(bereits hinzugefügt)"
 
-#: authswitch/gui.py:708
+#: authswitch/gui.py:797
 msgid "No Proxmox VE server found in your local networks"
 msgstr "Kein Proxmox-VE-Server in deinen lokalen Netzen gefunden"
 
-#: authswitch/gui.py:710
+#: authswitch/gui.py:799
 #, python-brace-format
 msgid "{count} found"
 msgstr "{count} gefunden"
 
-#: authswitch/gui.py:719
+#: authswitch/gui.py:808
 msgid "Searching your local networks…"
 msgstr "Lokale Netze werden durchsucht …"
 
-#: authswitch/gui.py:735
+#: authswitch/gui.py:824
 msgid ""
 "Create an API token in the web interface under Datacenter → Permissions → "
 "API Tokens and copy its ID and secret. The secret is kept in the system "
@@ -888,20 +995,20 @@ msgstr ""
 "Token ein Token und kopiere ID und Geheimnis. Das Geheimnis liegt "
 "ausschließlich im System-Schlüsselbund."
 
-#: authswitch/gui.py:741
+#: authswitch/gui.py:830
 msgid "Add"
 msgstr "Hinzufügen"
 
-#: authswitch/gui.py:765 authswitch/gui.py:776
+#: authswitch/gui.py:854 authswitch/gui.py:865
 msgid "Adding failed"
 msgstr "Hinzufügen fehlgeschlagen"
 
-#: authswitch/gui.py:767
+#: authswitch/gui.py:856
 #, python-brace-format
 msgid "Added {token}"
 msgstr "{token} hinzugefügt"
 
-#: authswitch/gui.py:792
+#: authswitch/gui.py:881
 #, python-brace-format
 msgid ""
 "The certificate of {host} is not signed by an authority your system trusts, "
@@ -915,141 +1022,141 @@ msgstr ""
 "Ausgabe von 'pvenode cert info' auf dem Server. Fahre nur fort, wenn sie "
 "übereinstimmen."
 
-#: authswitch/gui.py:797
+#: authswitch/gui.py:886
 msgid "Warning: this is not the certificate you confirmed before."
 msgstr "Achtung: Das ist nicht das Zertifikat, das du vorher bestätigt hast."
 
-#: authswitch/gui.py:801
+#: authswitch/gui.py:890
 msgid "Check the server certificate"
 msgstr "Serverzertifikat prüfen"
 
-#: authswitch/gui.py:804
+#: authswitch/gui.py:893
 msgid "Fingerprint matches"
 msgstr "Fingerabdruck stimmt"
 
-#: authswitch/gui.py:820
+#: authswitch/gui.py:909
 #, python-brace-format
 msgid "{token} has no rights yet"
 msgstr "{token} hat noch keine Rechte"
 
-#: authswitch/gui.py:821
+#: authswitch/gui.py:910
 msgid "It can sign in, but may not read or change anything."
 msgstr "Es kann sich anmelden, darf aber nichts lesen oder ändern."
 
-#: authswitch/gui.py:845
+#: authswitch/gui.py:934
 msgid "Checking subscription and repositories…"
 msgstr "Abonnement und Repositories werden geprüft …"
 
-#: authswitch/gui.py:851
+#: authswitch/gui.py:940
 msgid "Subscription could not be checked"
 msgstr "Abonnement konnte nicht geprüft werden"
 
-#: authswitch/gui.py:881
+#: authswitch/gui.py:970
 msgid "Subscription"
 msgstr "Abonnement"
 
-#: authswitch/gui.py:884
+#: authswitch/gui.py:973
 msgid "Active on every node"
 msgstr "Auf allen Knoten aktiv"
 
-#: authswitch/gui.py:884
+#: authswitch/gui.py:973
 #, python-brace-format
 msgid "None on {nodes} – that is fine for home and test use"
 msgstr "Keines auf {nodes} – für Heim- und Testbetrieb in Ordnung"
 
-#: authswitch/gui.py:887
+#: authswitch/gui.py:976
 msgid "Package repositories"
 msgstr "Paket-Repositories"
 
-#: authswitch/gui.py:888
+#: authswitch/gui.py:977
 msgid "Switch over"
 msgstr "Umstellen"
 
-#: authswitch/gui.py:891
+#: authswitch/gui.py:980
 msgid "\"No valid subscription\" notice"
 msgstr "Hinweis „No valid subscription“"
 
-#: authswitch/gui.py:899
+#: authswitch/gui.py:988
 msgid "Enterprise repository"
 msgstr "Enterprise-Repository"
 
-#: authswitch/gui.py:900
+#: authswitch/gui.py:989
 msgid "No-subscription repository – updates work"
 msgstr "No-Subscription-Repository – Updates funktionieren"
 
-#: authswitch/gui.py:901
+#: authswitch/gui.py:990
 msgid "Enterprise repository without subscription – updates fail"
 msgstr "Enterprise-Repository ohne Abonnement – Updates schlagen fehl"
 
-#: authswitch/gui.py:908
+#: authswitch/gui.py:997
 msgid "Hidden; the actions behind it keep working"
 msgstr "Ausgeblendet; die Aktionen dahinter funktionieren"
 
-#: authswitch/gui.py:909
+#: authswitch/gui.py:998
 msgid "Shown at every login"
 msgstr "Erscheint bei jeder Anmeldung"
 
-#: authswitch/gui.py:910
+#: authswitch/gui.py:999
 msgid ""
 "Hidden by another recipe that also stops actions such as adding a repository"
 msgstr ""
 "Mit einem anderen Rezept ausgeblendet, das auch Aktionen wie „Repository "
 "hinzufügen“ blockiert"
 
-#: authswitch/gui.py:911
+#: authswitch/gui.py:1000
 msgid "Could not be determined"
 msgstr "Nicht feststellbar"
 
-#: authswitch/gui.py:914
+#: authswitch/gui.py:1003
 msgid "Remove…"
 msgstr "Entfernen …"
 
-#: authswitch/gui.py:914
+#: authswitch/gui.py:1003
 msgid "Repair…"
 msgstr "Reparieren …"
 
-#: authswitch/gui.py:923
+#: authswitch/gui.py:1012
 msgid "Repositories could not be changed"
 msgstr "Repositories konnten nicht geändert werden"
 
-#: authswitch/gui.py:926
+#: authswitch/gui.py:1015
 #, python-brace-format
 msgid "{host} now uses the no-subscription repository"
 msgstr "{host} nutzt jetzt das No-Subscription-Repository"
 
-#: authswitch/gui.py:943
+#: authswitch/gui.py:1032
 #, python-brace-format
 msgid "Subscription notice removed on {host}"
 msgstr "Abonnement-Hinweis auf {host} entfernt"
 
-#: authswitch/gui.py:961
+#: authswitch/gui.py:1050
 msgid "Subscription and repository"
 msgstr "Abonnement und Repository"
 
-#: authswitch/gui.py:962
+#: authswitch/gui.py:1051
 #, python-brace-format
 msgid "{host}: what is set up, and what Auth-Switch can do for you."
 msgstr ""
 "{host}: was eingerichtet ist und was Auth-Switch für dich erledigen kann."
 
-#: authswitch/gui.py:975 authswitch/gui.py:1076
+#: authswitch/gui.py:1064 authswitch/gui.py:1165
 msgid "Password of root@pam (not stored)"
 msgstr "Passwort von root@pam (wird nicht gespeichert)"
 
-#: authswitch/gui.py:976 authswitch/gui.py:1077
+#: authswitch/gui.py:1065 authswitch/gui.py:1166
 msgid "One-time code (two-factor authentication)"
 msgstr "Einmalcode (Zwei-Faktor-Anmeldung)"
 
-#: authswitch/gui.py:981
+#: authswitch/gui.py:1070
 msgid "Show what runs as root"
 msgstr "Anzeigen, was als root läuft"
 
-#: authswitch/gui.py:993
+#: authswitch/gui.py:1082
 #, python-brace-format
 msgid "Hide the notice on {node}"
 msgstr "Hinweis auf {node} ausblenden"
 
-#: authswitch/gui.py:995
+#: authswitch/gui.py:1084
 msgid ""
 "This changes a file of the web interface and installs an APT hook that keeps "
 "the change after updates, so it has to run as root. Easiest: enter the root "
@@ -1063,31 +1170,31 @@ msgstr ""
 "führt das Skript in der eigenen Root-Konsole des Knotens über die Verbindung "
 "aus, der du schon vertraust, und vergisst das Passwort sofort."
 
-#: authswitch/gui.py:1003
+#: authswitch/gui.py:1092
 msgid "Do it myself"
 msgstr "Selbst erledigen"
 
-#: authswitch/gui.py:1005
+#: authswitch/gui.py:1094
 msgid "Over SSH"
 msgstr "Per SSH"
 
-#: authswitch/gui.py:1006
+#: authswitch/gui.py:1095
 msgid "Run with password"
 msgstr "Mit Passwort ausführen"
 
-#: authswitch/gui.py:1018
+#: authswitch/gui.py:1107
 msgid "The notice could not be removed"
 msgstr "Der Hinweis konnte nicht entfernt werden"
 
-#: authswitch/gui.py:1027
+#: authswitch/gui.py:1116
 msgid "Signing in as root@pam and running the script…"
 msgstr "Anmeldung als root@pam und Ausführung des Skripts …"
 
-#: authswitch/gui.py:1035
+#: authswitch/gui.py:1124
 msgid "Paste the command in the node shell"
 msgstr "Befehl in die Node-Shell einfügen"
 
-#: authswitch/gui.py:1037
+#: authswitch/gui.py:1126
 #, python-brace-format
 msgid ""
 "The command is in the clipboard and the web interface is opening. Sign in "
@@ -1098,11 +1205,11 @@ msgstr ""
 "Melde dich dort an, wähle {node} und öffne die Shell, füge den Befehl ein "
 "und drücke Enter. Dieses Fenster merkt von selbst, wenn der Hinweis weg ist."
 
-#: authswitch/gui.py:1040
+#: authswitch/gui.py:1129
 msgid "the node"
 msgstr "den Knoten"
 
-#: authswitch/gui.py:1052
+#: authswitch/gui.py:1141
 msgid ""
 "While it is on, any program running as you – including an AI assistant with "
 "shell access – can log in as root without asking. The MCP server of Auth-"
@@ -1113,20 +1220,20 @@ msgstr ""
 "als root anmelden. Der MCP-Server von Auth-Switch nutzt ihn nicht und weiß "
 "nichts davon."
 
-#: authswitch/gui.py:1066
+#: authswitch/gui.py:1155
 msgid "Reading the server…"
 msgstr "Server wird gelesen …"
 
-#: authswitch/gui.py:1075
+#: authswitch/gui.py:1164
 #, python-brace-format
 msgid "Name for ssh, e.g. ssh {name}"
 msgstr "Name für ssh, z. B. ssh {name}"
 
-#: authswitch/gui.py:1088 authswitch/gui.py:1146
+#: authswitch/gui.py:1177 authswitch/gui.py:1235
 msgid "SSH for my terminal"
 msgstr "SSH für mein Terminal"
 
-#: authswitch/gui.py:1090
+#: authswitch/gui.py:1179
 #, python-brace-format
 msgid ""
 "Auth-Switch creates a key only for {host}, lets root on the server trust it "
@@ -1140,28 +1247,28 @@ msgstr ""
 "root an. Der Schlüssel bleibt im System-Schlüsselbund; Ausschalten nimmt ihn "
 "aus ssh, Einschalten holt ihn zurück."
 
-#: authswitch/gui.py:1097
+#: authswitch/gui.py:1186
 msgid "Set up"
 msgstr "Einrichten"
 
-#: authswitch/gui.py:1114
+#: authswitch/gui.py:1203
 msgid "SSH could not be set up"
 msgstr "SSH konnte nicht eingerichtet werden"
 
-#: authswitch/gui.py:1116
+#: authswitch/gui.py:1205
 #, python-brace-format
 msgid "SSH ready: ssh {alias}"
 msgstr "SSH bereit: ssh {alias}"
 
-#: authswitch/gui.py:1130
+#: authswitch/gui.py:1219
 msgid "SSH access as root"
 msgstr "SSH-Zugang als root"
 
-#: authswitch/gui.py:1131
+#: authswitch/gui.py:1220
 msgid "Copy command"
 msgstr "Befehl kopieren"
 
-#: authswitch/gui.py:1148
+#: authswitch/gui.py:1237
 msgid ""
 "Off removes the key from ssh at once; it stays in the system keyring and on "
 "the server, so switching on again needs nothing else. Remove takes it off "
@@ -1171,34 +1278,34 @@ msgstr ""
 "und auf dem Server, daher braucht erneutes Einschalten nichts weiter. "
 "Entfernen trägt ihn vom Server aus und löscht ihn aus dem Schlüsselbund."
 
-#: authswitch/gui.py:1162 authswitch/gui.py:1171
+#: authswitch/gui.py:1251 authswitch/gui.py:1260
 msgid "SSH could not be changed"
 msgstr "SSH konnte nicht geändert werden"
 
-#: authswitch/gui.py:1164
+#: authswitch/gui.py:1253
 #, python-brace-format
 msgid "SSH to {host} off"
 msgstr "SSH zu {host} aus"
 
-#: authswitch/gui.py:1164
+#: authswitch/gui.py:1253
 #, python-brace-format
 msgid "SSH to {host} on"
 msgstr "SSH zu {host} an"
 
-#: authswitch/gui.py:1173
+#: authswitch/gui.py:1262
 #, python-brace-format
 msgid "SSH access to {host} removed"
 msgstr "SSH-Zugang zu {host} entfernt"
 
-#: authswitch/gui.py:1187
+#: authswitch/gui.py:1276
 msgid "Reading versions and updates…"
 msgstr "Versionen und Updates werden gelesen …"
 
-#: authswitch/gui.py:1192
+#: authswitch/gui.py:1281
 msgid "Server could not be read"
 msgstr "Server konnte nicht gelesen werden"
 
-#: authswitch/gui.py:1193
+#: authswitch/gui.py:1282
 msgid ""
 "This needs Sys.Audit, and Sys.Modify for changes, for example with a token "
 "of root@pam."
@@ -1206,61 +1313,61 @@ msgstr ""
 "Dafür braucht es Sys.Audit und für Änderungen Sys.Modify, zum Beispiel mit "
 "einem Token von root@pam."
 
-#: authswitch/gui.py:1206
+#: authswitch/gui.py:1295
 msgid "Browser default"
 msgstr "Browser-Standard"
 
-#: authswitch/gui.py:1208
+#: authswitch/gui.py:1297
 msgid "Language of the web interface"
 msgstr "Sprache der Weboberfläche"
 
-#: authswitch/gui.py:1209
+#: authswitch/gui.py:1298
 msgid "Default for everyone who has not chosen a language at login"
 msgstr "Standard für alle, die bei der Anmeldung keine Sprache gewählt haben"
 
-#: authswitch/gui.py:1217
+#: authswitch/gui.py:1306
 msgid "Language could not be changed"
 msgstr "Sprache konnte nicht geändert werden"
 
-#: authswitch/gui.py:1219
+#: authswitch/gui.py:1308
 #, python-brace-format
 msgid "Language of the web interface: {language}"
 msgstr "Sprache der Weboberfläche: {language}"
 
-#: authswitch/gui.py:1229
+#: authswitch/gui.py:1318
 msgid "Reboot"
 msgstr "Neu starten"
 
-#: authswitch/gui.py:1233
+#: authswitch/gui.py:1322
 msgid "Upgrade"
 msgstr "Upgraden"
 
-#: authswitch/gui.py:1242
+#: authswitch/gui.py:1331
 msgid "up to date"
 msgstr "aktuell"
 
-#: authswitch/gui.py:1242
+#: authswitch/gui.py:1331
 #, python-brace-format
 msgid "{count} updates available"
 msgstr "{count} Updates verfügbar"
 
-#: authswitch/gui.py:1245
+#: authswitch/gui.py:1334
 msgid "reboot pending"
 msgstr "Neustart ausstehend"
 
-#: authswitch/gui.py:1252
+#: authswitch/gui.py:1341
 msgid "Check for updates"
 msgstr "Nach Updates suchen"
 
-#: authswitch/gui.py:1252
+#: authswitch/gui.py:1341
 msgid "Runs apt update on every node"
 msgstr "Führt apt update auf jedem Knoten aus"
 
-#: authswitch/gui.py:1261
+#: authswitch/gui.py:1350
 msgid "Updates could not be checked"
 msgstr "Updates konnten nicht geprüft werden"
 
-#: authswitch/gui.py:1276
+#: authswitch/gui.py:1365
 msgid ""
 "Upgrade installs all pending updates of a node, the same as the Upgrade "
 "button of the web interface. It stays within the installed major version; "
@@ -1271,106 +1378,106 @@ msgstr ""
 "Hauptversion; für den Wechsel zur nächsten braucht es die offizielle Upgrade-"
 "Anleitung."
 
-#: authswitch/gui.py:1279
+#: authswitch/gui.py:1368
 msgid "Updates and language"
 msgstr "Updates und Sprache"
 
-#: authswitch/gui.py:1282
+#: authswitch/gui.py:1371
 msgid "Major upgrade guide"
 msgstr "Anleitung für Hauptversion"
 
-#: authswitch/gui.py:1297
+#: authswitch/gui.py:1386
 msgid "Checking SSH access…"
 msgstr "SSH-Zugang wird geprüft …"
 
-#: authswitch/gui.py:1304
+#: authswitch/gui.py:1393
 msgid "Upgrade failed"
 msgstr "Upgrade fehlgeschlagen"
 
-#: authswitch/gui.py:1304
+#: authswitch/gui.py:1393
 msgid "Use the upgrade console instead."
 msgstr "Nutze stattdessen die Upgrade-Konsole."
 
-#: authswitch/gui.py:1306
+#: authswitch/gui.py:1395
 #, python-brace-format
 msgid "{node} is up to date"
 msgstr "{node} ist aktuell"
 
-#: authswitch/gui.py:1317
+#: authswitch/gui.py:1406
 #, python-brace-format
 msgid "Upgrading {node}… this can take a few minutes"
 msgstr "{node} wird upgegradet … das kann einige Minuten dauern"
 
-#: authswitch/gui.py:1325
+#: authswitch/gui.py:1414
 msgid "Reading running guests…"
 msgstr "Laufende Gäste werden gelesen …"
 
-#: authswitch/gui.py:1330
+#: authswitch/gui.py:1419
 #, python-brace-format
 msgid "{node} has a new kernel; it takes effect after a reboot."
 msgstr "{node} hat einen neuen Kernel; er wirkt nach einem Neustart."
 
-#: authswitch/gui.py:1334
+#: authswitch/gui.py:1423
 msgid "Running guests are shut down first."
 msgstr "Laufende Gäste werden vorher heruntergefahren."
 
-#: authswitch/gui.py:1336
+#: authswitch/gui.py:1425
 #, python-brace-format
 msgid "Start again by themselves: {guests}"
 msgstr "Starten danach von selbst: {guests}"
 
-#: authswitch/gui.py:1338
+#: authswitch/gui.py:1427
 #, python-brace-format
 msgid "Stay off until you start them: {guests}"
 msgstr "Bleiben aus, bis du sie startest: {guests}"
 
-#: authswitch/gui.py:1340
+#: authswitch/gui.py:1429
 msgid "No guest is running."
 msgstr "Es läuft kein Gast."
 
-#: authswitch/gui.py:1341
+#: authswitch/gui.py:1430
 msgid "The web interface is unreachable for a few minutes."
 msgstr "Die Weboberfläche ist einige Minuten nicht erreichbar."
 
-#: authswitch/gui.py:1342
+#: authswitch/gui.py:1431
 #, python-brace-format
 msgid "Reboot {node} now?"
 msgstr "{node} jetzt neu starten?"
 
-#: authswitch/gui.py:1343
+#: authswitch/gui.py:1432
 msgid "Later"
 msgstr "Später"
 
-#: authswitch/gui.py:1344
+#: authswitch/gui.py:1433
 msgid "Reboot now"
 msgstr "Jetzt neu starten"
 
-#: authswitch/gui.py:1350
+#: authswitch/gui.py:1439
 #, python-brace-format
 msgid "{node} is back after the reboot"
 msgstr "{node} ist nach dem Neustart wieder da"
 
-#: authswitch/gui.py:1352
+#: authswitch/gui.py:1441
 #, python-brace-format
 msgid "{node} is not back yet"
 msgstr "{node} ist noch nicht wieder da"
 
-#: authswitch/gui.py:1353
+#: authswitch/gui.py:1442
 msgid "It did not answer within 15 minutes. Check the console of the machine."
 msgstr ""
 "Der Server hat 15 Minuten lang nicht geantwortet. Sieh an der Konsole des "
 "Rechners nach."
 
-#: authswitch/gui.py:1359
+#: authswitch/gui.py:1448
 msgid "Reboot failed"
 msgstr "Neustart fehlgeschlagen"
 
-#: authswitch/gui.py:1361
+#: authswitch/gui.py:1450
 #, python-brace-format
 msgid "{node} is rebooting…"
 msgstr "{node} startet neu …"
 
-#: authswitch/gui.py:1377
+#: authswitch/gui.py:1466
 #, python-brace-format
 msgid ""
 "SSH as root does not work for {node}, so the upgrade runs in the upgrade "
@@ -1382,28 +1489,28 @@ msgstr ""
 "zeigt. Für Upgrades mit einem einzigen Klick richte einmal „SSH für mein "
 "Terminal“ ein."
 
-#: authswitch/gui.py:1381
+#: authswitch/gui.py:1470
 #, python-brace-format
 msgid "Upgrade {node}?"
 msgstr "{node} upgraden?"
 
-#: authswitch/gui.py:1384
+#: authswitch/gui.py:1473
 msgid "Set up SSH…"
 msgstr "SSH einrichten …"
 
-#: authswitch/gui.py:1385
+#: authswitch/gui.py:1474
 msgid "Open upgrade console"
 msgstr "Upgrade-Konsole öffnen"
 
-#: authswitch/gui.py:1400
+#: authswitch/gui.py:1489
 msgid "Options"
 msgstr "Optionen"
 
-#: authswitch/gui.py:1403
+#: authswitch/gui.py:1492
 msgid "MCP server"
 msgstr "MCP-Server"
 
-#: authswitch/gui.py:1404
+#: authswitch/gui.py:1493
 msgid ""
 "Lets AI assistants with MCP support use your Proxmox VE accounts; copy the "
 "entry for their configuration"
@@ -1411,52 +1518,52 @@ msgstr ""
 "Lässt KI-Assistenten mit MCP-Unterstützung deine Proxmox-VE-Konten nutzen; "
 "kopiere den Eintrag für ihre Konfiguration"
 
-#: authswitch/gui.py:1406
+#: authswitch/gui.py:1495
 msgid "Copy entry"
 msgstr "Eintrag kopieren"
 
-#: authswitch/gui.py:1413
+#: authswitch/gui.py:1502
 msgid "Claude Code"
 msgstr "Claude Code"
 
-#: authswitch/gui.py:1413
+#: authswitch/gui.py:1502
 msgid "Claude Desktop"
 msgstr "Claude Desktop"
 
-#: authswitch/gui.py:1415
+#: authswitch/gui.py:1504
 msgid "Claude Code integration"
 msgstr "Claude-Code-Integration"
 
-#: authswitch/gui.py:1416
+#: authswitch/gui.py:1505
 #, python-brace-format
 msgid "Registers the MCP server in {apps}"
 msgstr "Registriert den MCP-Server in {apps}"
 
-#: authswitch/gui.py:1422
+#: authswitch/gui.py:1511
 msgid "Sound effects"
 msgstr "Soundeffekte"
 
-#: authswitch/gui.py:1427
+#: authswitch/gui.py:1516
 msgid "Check for updates on start"
 msgstr "Beim Start nach Updates suchen"
 
-#: authswitch/gui.py:1428
+#: authswitch/gui.py:1517
 msgid "Asks GitHub for the latest release, without any account"
 msgstr "Fragt GitHub nach dem neuesten Release, ohne ein Konto zu verwenden"
 
-#: authswitch/gui.py:1447
+#: authswitch/gui.py:1536
 msgid "Claude Code integration could not be changed"
 msgstr "Claude-Code-Integration konnte nicht geändert werden"
 
-#: authswitch/gui.py:1449
+#: authswitch/gui.py:1538
 msgid "MCP server registered; restart Claude Code to load it"
 msgstr "MCP-Server registriert; starte Claude Code neu, um ihn zu laden"
 
-#: authswitch/gui.py:1451
+#: authswitch/gui.py:1540
 msgid "MCP server removed from Claude Code"
 msgstr "MCP-Server aus Claude Code entfernt"
 
-#: authswitch/gui.py:1459
+#: authswitch/gui.py:1548
 #, python-brace-format
 msgid "Auth-Switch {version} is available"
 msgstr "Auth-Switch {version} ist verfügbar"

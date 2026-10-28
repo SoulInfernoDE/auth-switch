@@ -55,14 +55,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.4.0_all.deb
+sudo apt install ./auth-switch_0.4.1_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.0-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.1-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -224,6 +224,13 @@ Linux – und bietet:
   Postfach, untergeordnete IDs und sudo-Regeln (nur übernommen, wenn `visudo`
   sie akzeptiert). Danach nennt es jede Stelle, die das alte Konto noch nennt.
   Das Konto muss dafür abgemeldet sein.
+- **Computername:** bei VMs zeigt der Dialog den Computernamen des Gastes und
+  ob er dem VM-Namen entspricht; **VM-Namen übernehmen …** gibt ihm diesen
+  Namen. Windows übernimmt ihn nach einem Neustart, den der Dialog gleich
+  anbietet; Namen über 15 Zeichen werden für ältere Netzwerkdienste (NetBIOS)
+  gekürzt. Unter Linux ändern sich Hostname und die Zeile `127.0.1.1` in
+  `/etc/hosts` ohne Neustart. Container tragen ihren Namen immer, Proxmox VE
+  setzt ihn.
 
 VMs brauchen einen laufenden QEMU-Gast-Agenten. Container haben keinen; sie
 werden mit `pct exec` über den Zugang von **SSH für mein Terminal** erreicht,

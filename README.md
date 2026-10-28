@@ -54,14 +54,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.4.0_all.deb
+sudo apt install ./auth-switch_0.4.1_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.0-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.1-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -210,6 +210,12 @@ Windows, root and regular users on Linux – and offers:
   ids and sudo rules (only kept if `visudo` accepts them). Afterwards it lists
   any place that still names the old account. The account has to be signed
   out.
+- **Computer name:** for VMs the dialog shows the guest's computer name and
+  whether it matches the VM name; **Use VM name…** gives it that name. Windows
+  takes it after a restart, which the dialog offers right away; names longer
+  than 15 characters are shortened for older network services (NetBIOS). On
+  Linux the host name and the `127.0.1.1` line of `/etc/hosts` change without a
+  restart. Containers always carry their name, Proxmox VE sets it.
 
 VMs need a running QEMU guest agent. Containers have none, so they are reached
 with `pct exec` over the access of **SSH for my terminal**, which must be on.

@@ -681,6 +681,43 @@ class GuestAccountTest(unittest.TestCase):
         self.assertEqual(text.splitlines(), ["Account: dana → erin", "Paths in NTUSER.DAT: 74", "Places still naming the old name: 1", "  HKLM\\X"])
         self.assertEqual(guestaccounts.describe("ERROR\tsignedin\tdana\n"), "dana is signed in. Sign the account out first, then rename it.")
 
+    def test_computer_name_follows_vm_name(self):
+        cases = {
+            ("windows-dev-prod-1", guestaccounts.WINDOWS): "windows-dev-prod-1",
+            ("web.lab", guestaccounts.WINDOWS): "web",
+            ("web.lab", guestaccounts.LINUX): "web.lab",
+            ("123", guestaccounts.LINUX): "",
+            ("a_b", guestaccounts.LINUX): "",
+            ("-web", guestaccounts.LINUX): "",
+            ("x" * 64, guestaccounts.WINDOWS): "",
+        }
+        for (vm, system), expected in cases.items():
+            self.assertEqual(guestaccounts.computer_name_for(vm, system), expected, msg=(vm, system))
+
+    def test_reads_current_and_pending_windows_name(self):
+        guest = self.guest()
+        output = "#< CLIXML noise\r\nNAME\tDESKTOP-1\twin-dev\r\n"
+        with mock.patch.object(guest, "_api", return_value={"name": "win-dev"}), \
+                mock.patch.object(guest, "system", return_value=guestaccounts.WINDOWS), \
+                mock.patch.object(guest, "run", return_value=(0, output)):
+            info = guest.computer_name()
+        self.assertEqual(info, {"system": "windows", "vm": "win-dev", "current": "DESKTOP-1", "pending": "win-dev", "target": "win-dev"})
+        self.assertIsNone(self.guest("lxc").computer_name())
+
+    def test_sets_computer_name(self):
+        guest = self.guest()
+        with mock.patch.object(guest, "system", return_value=guestaccounts.LINUX), mock.patch.object(guest, "run", return_value=(0, "")) as run:
+            self.assertFalse(guest.set_computer_name("web-1"))
+        self.assertEqual(run.call_args.args[0], ["sh", "-s"])
+        self.assertIn("new='web-1'", run.call_args.kwargs["stdin"])
+        self.assertEqual(subprocess.run(["sh", "-n"], input=run.call_args.kwargs["stdin"], text=True).returncode, 0)
+        with mock.patch.object(guest, "system", return_value=guestaccounts.WINDOWS), mock.patch.object(guest, "run", return_value=(0, "")):
+            self.assertTrue(guest.set_computer_name("web-1"))
+        self.assertIn("Rename-Computer -NewName 'web-1'", guestaccounts.windows_computer_name_script("web-1"))
+        for bad in ("", "x'y", "a b", "web;reboot"):
+            with self.assertRaises(core.AuthError, msg=bad):
+                guest.set_computer_name(bad)
+
     def test_containers_need_ssh(self):
         container = self.guest("lxc")
         with mock.patch.object(sshaccess, "status", return_value={"enabled": False}):

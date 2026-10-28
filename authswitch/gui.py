@@ -458,18 +458,26 @@ class Window(Adw.ApplicationWindow):
         guest = guestaccounts.Guest(host, resource["node"], resource["kind"], vmid, manager)
         done_loading = self.busy(_("Reading the accounts of {guest}…").format(guest=resource["label"]))
 
-        def loaded(users, error):
+        def fetch():
+            users = guest.users()
+            try:
+                computer = guest.computer_name()
+            except core.AuthError:
+                computer = None
+            return users, computer
+
+        def loaded(result, error):
             done_loading()
             if error:
                 self.explain(_("Accounts could not be read"), str(error))
-            elif not users:
+            elif not result[0]:
                 self.explain(_("Accounts could not be read"), _("No account to sign in with was found."))
             else:
-                self.show_guest_accounts(guest, resource["label"], users)
+                self.show_guest_accounts(guest, resource["label"], *result)
 
-        run_async(guest.users, loaded)
+        run_async(fetch, loaded)
 
-    def show_guest_accounts(self, guest, label: str, users: list[dict]) -> None:
+    def show_guest_accounts(self, guest, label: str, users: list[dict], computer: dict | None = None) -> None:
         names = [u["name"] for u in users]
         chooser = Adw.ComboRow(title=_("Account"), model=Gtk.StringList.new(names))
         rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
@@ -480,6 +488,8 @@ class Window(Adw.ApplicationWindow):
             transient_for=self, heading=_("User accounts in {guest}").format(guest=label),
             body=_("Changes an account inside the guest directly; the VM must be running."), extra_child=rows,
         )
+        if computer:
+            rows.append(self.computer_name_row(guest, label, computer, dialog))
         dialog.add_response("close", _("Close"))
         dialog.add_response("rename", _("Rename…"))
         dialog.add_response("password", _("Change password…"))
@@ -491,6 +501,85 @@ class Window(Adw.ApplicationWindow):
                 self.ask_guest_password(guest, user)
             elif response == "rename":
                 self.ask_guest_rename(guest, user)
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    def computer_name_row(self, guest, label: str, computer: dict, parent) -> Gtk.Widget:
+        """The guest's computer name, with a button to give it the VM name when the two differ."""
+        windows = computer["system"] == guestaccounts.WINDOWS
+
+        def same(a: str, b: str) -> bool:
+            # Windows does not tell upper and lower case apart in computer names.
+            return a.lower() == b.lower() if windows else a == b
+
+        current, pending, target = computer["current"], computer["pending"], computer["target"]
+        row = Adw.ActionRow(title=_("Computer name"), subtitle=current, use_markup=False)
+        if not target:
+            row.set_subtitle(current + "\n" + _("The VM name {name} is no valid computer name.").format(name=computer["vm"]))
+            return row
+        if same(current, target):
+            row.add_suffix(Gtk.Image(icon_name="object-select-symbolic", tooltip_text=_("Matches the VM name")))
+            return row
+        if same(pending, target):
+            row.set_subtitle(_("{current} → {new} after a restart").format(current=current, new=pending))
+            action = Gtk.Button(label=_("Restart…"), valign=Gtk.Align.CENTER)
+        else:
+            action = Gtk.Button(label=_("Use VM name…"), valign=Gtk.Align.CENTER, tooltip_text=target)
+        action.connect("clicked", lambda _b: (parent.close(), self.ask_computer_name(guest, label, computer)))
+        row.add_suffix(action)
+        return row
+
+    def ask_computer_name(self, guest, label: str, computer: dict) -> None:
+        target = computer["target"]
+        windows = computer["system"] == guestaccounts.WINDOWS
+        renamed = computer["pending"].lower() == target.lower() if windows else computer["pending"] == target
+        lines = []
+        if windows:
+            lines.append(_("Windows uses the new name after a restart. A restart signs out everyone who is signed in."))
+            if len(target) > guestaccounts.NETBIOS_LENGTH:
+                lines.append(_("Older Windows network services only see the first {count} characters: {short}").format(
+                    count=guestaccounts.NETBIOS_LENGTH, short=target[:guestaccounts.NETBIOS_LENGTH].upper()))
+        else:
+            lines.append(_("Sets the host name and the matching line in /etc/hosts; no restart is needed."))
+        if renamed:
+            heading = _("Restart {guest}?").format(guest=label)
+        else:
+            heading = _("Rename the computer {current} to {new}?").format(current=computer["current"], new=target)
+        dialog = Adw.MessageDialog(transient_for=self, heading=heading, body="\n\n".join(lines))
+        dialog.add_response("cancel", _("Cancel"))
+        if windows and not renamed:
+            dialog.add_response("rename", _("Rename only"))
+        if windows:
+            dialog.add_response("restart", _("Restart now") if renamed else _("Rename and restart"))
+            dialog.set_response_appearance("restart", Adw.ResponseAppearance.SUGGESTED)
+        else:
+            dialog.add_response("rename", _("Rename"))
+            dialog.set_response_appearance("rename", Adw.ResponseAppearance.SUGGESTED)
+
+        def apply(restart: bool):
+            later = False if renamed else guest.set_computer_name(target)
+            if restart:
+                guest.restart()
+            return later and not restart
+
+        def on_response(_dialog, response):
+            if response not in ("rename", "restart"):
+                return
+            done_loading = self.busy(_("Changing the computer name of {guest}…").format(guest=label))
+
+            def done(later, error):
+                done_loading()
+                if error:
+                    self.explain(_("The computer name could not be changed"), str(error))
+                elif later:
+                    self.toast(_("{guest} is called {name} after the next restart").format(guest=label, name=target), "success")
+                elif response == "restart":
+                    self.toast(_("{guest} restarts as {name}").format(guest=label, name=target), "success")
+                else:
+                    self.toast(_("The computer name is now {name}").format(name=target), "success")
+
+            run_async(lambda: apply(response == "restart"), done)
 
         dialog.connect("response", on_response)
         dialog.present()
