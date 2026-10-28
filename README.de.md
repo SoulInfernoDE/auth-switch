@@ -37,6 +37,8 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
 - Zeigt ausstehende Updates pro Knoten, upgradet einen Knoten und stellt die
   Standardsprache der Weboberfläche ein
 - Richtet SSH als root für dein eigenes Terminal ein und schaltet es ein und aus
+- Ändert das Passwort eines Kontos in einer VM oder einem Container oder benennt
+  es um, ohne dass der alte Name zurückbleibt
 - Startet andere Werkzeuge mit dem aktiven Konto: `auth-switch exec -- terraform plan`
 - MCP-Server mit Lese- und Schreibzugriff auf die Proxmox-VE-API
 - Leak-Prüfung: findet Token-Geheimnisse, Serveradressen, deine echte
@@ -53,14 +55,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.3.15_all.deb
+sudo apt install ./auth-switch_0.4.0_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.15-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.0-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -202,6 +204,30 @@ Solange der Zugang an ist, kann sich jedes Programm unter deinem Benutzer –
 auch ein KI-Assistent mit Shell-Zugriff – ohne Rückfrage als root anmelden; das
 Fenster sagt das in einem hervorgehobenen Hinweis. Der MCP-Server hat kein Tool
 dafür und erfährt nichts davon.
+
+### Benutzerkonten in Gästen
+
+Jede virtuelle Maschine und jeder Container in diesem Dropdown hat einen Knopf
+**Benutzerkonten …**. Er listet die Konten, mit denen man sich anmeldet –
+aktivierte lokale Benutzer unter Windows, root und reguläre Benutzer unter
+Linux – und bietet:
+
+- **Passwort ändern:** bei VMs über den eigenen Passwort-Aufruf des
+  Gast-Agenten, bei Containern über `chpasswd` mit dem Passwort auf der
+  Standardeingabe; es steht nie in einer Befehlszeile im Gast, und Auth-Switch
+  speichert es nicht.
+- **Umbenennen:** zeigt zuerst eine Vorschau und benennt das Konto dann sauber
+  um. Unter Windows: Konto, Anzeigename (falls gesetzt), Profilordner samt
+  Registry-Eintrag sowie den alten Profilpfad in den Registry-Dateien des
+  Benutzers (`NTUSER.DAT`, `UsrClass.dat`) und in der System-Registry. Unter
+  Linux: Konto, primäre Gruppe, Home-Verzeichnis, Anzeigename, Crontab,
+  Postfach, untergeordnete IDs und sudo-Regeln (nur übernommen, wenn `visudo`
+  sie akzeptiert). Danach nennt es jede Stelle, die das alte Konto noch nennt.
+  Das Konto muss dafür abgemeldet sein.
+
+VMs brauchen einen laufenden QEMU-Gast-Agenten. Container haben keinen; sie
+werden mit `pct exec` über den Zugang von **SSH für mein Terminal** erreicht,
+der dafür eingeschaltet sein muss.
 
 ## So werden Geheimnisse geschützt
 

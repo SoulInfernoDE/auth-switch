@@ -36,6 +36,8 @@ Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch)
 - Shows pending updates per node, upgrades a node and sets the default language
   of the web interface
 - Sets up SSH as root for your own terminal and switches it on and off
+- Changes the password of an account inside a VM or container, or renames it
+  without leaving the old name behind
 - Runs other tools with the active account: `auth-switch exec -- terraform plan`
 - MCP server with read and write access to the Proxmox VE API
 - Leak check: finds token secrets, server addresses, your real e-mail address
@@ -52,14 +54,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.3.15_all.deb
+sudo apt install ./auth-switch_0.4.0_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.3.15-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.0-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -190,6 +192,27 @@ the keyring itself.
 While access is on, any program running as you – including an AI assistant
 with shell access – can log in as root without asking; the window says so in a
 highlighted note. The MCP server has no tool for it and is not told about it.
+
+### User accounts inside guests
+
+Each virtual machine and container in that drop-down has a **User accounts…**
+button. It lists the accounts people sign in with – enabled local users on
+Windows, root and regular users on Linux – and offers:
+
+- **Change password:** for VMs through the guest agent's own password call, for
+  containers by handing the password to `chpasswd` on standard input; it never
+  appears on a command line inside the guest and Auth-Switch does not store it.
+- **Rename:** shows a preview first, then renames the account cleanly.
+  On Windows: account, display name (if one was set), profile folder and its
+  registry entry, and the old profile path in the user's registry files
+  (`NTUSER.DAT`, `UsrClass.dat`) and in the system registry. On Linux: account,
+  primary group, home directory, display name, crontab, mailbox, subordinate
+  ids and sudo rules (only kept if `visudo` accepts them). Afterwards it lists
+  any place that still names the old account. The account has to be signed
+  out.
+
+VMs need a running QEMU guest agent. Containers have none, so they are reached
+with `pct exec` over the access of **SSH for my terminal**, which must be on.
 
 ## How secrets are protected
 

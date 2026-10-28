@@ -15,7 +15,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import __version__, core, discovery, rootshell, sound, sshaccess, update  # noqa: E402
+from . import __version__, core, discovery, guestaccounts, rootshell, sound, sshaccess, update  # noqa: E402
 from .i18n import _  # noqa: E402
 
 APP_ID = ICON_NAME = "dev.authswitch.AuthSwitch"
@@ -421,6 +421,11 @@ class Window(Adw.ApplicationWindow):
             for resource in resources:
                 row = Adw.ActionRow(title=resource["label"], subtitle=kinds[resource["kind"]], use_markup=False)
                 row.add_prefix(Gtk.Image(icon_name=icons[resource["kind"]]))
+                if resource["kind"] in ("qemu", "lxc"):
+                    people = Gtk.Button(icon_name="system-users-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("User accounts…"))
+                    people.add_css_class("flat")
+                    people.connect("clicked", lambda _b, r=resource: (popover.popdown(), self.open_guest_accounts(account.host, r, manager())))
+                    row.add_suffix(people)
                 switch = Gtk.Switch(active=resource["path"] not in denied, valign=Gtk.Align.CENTER, tooltip_text=resource["path"])
                 switch.connect("notify::active", toggled, resource["path"])
                 row.add_suffix(switch)
@@ -445,6 +450,154 @@ class Window(Adw.ApplicationWindow):
         popover.connect("show", load)
         chooser.connect("notify::selected", load)
         return popover
+
+    # --- user accounts inside a guest ------------------------------------------
+
+    def open_guest_accounts(self, host: str, resource: dict, manager: core.Account) -> None:
+        vmid = resource["path"].rsplit("/", 1)[1]
+        guest = guestaccounts.Guest(host, resource["node"], resource["kind"], vmid, manager)
+        done_loading = self.busy(_("Reading the accounts of {guest}…").format(guest=resource["label"]))
+
+        def loaded(users, error):
+            done_loading()
+            if error:
+                self.explain(_("Accounts could not be read"), str(error))
+            elif not users:
+                self.explain(_("Accounts could not be read"), _("No account to sign in with was found."))
+            else:
+                self.show_guest_accounts(guest, resource["label"], users)
+
+        run_async(guest.users, loaded)
+
+    def show_guest_accounts(self, guest, label: str, users: list[dict]) -> None:
+        names = [u["name"] for u in users]
+        chooser = Adw.ComboRow(title=_("Account"), model=Gtk.StringList.new(names))
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.set_size_request(400, -1)
+        rows.append(chooser)
+        dialog = Adw.MessageDialog(
+            transient_for=self, heading=_("User accounts in {guest}").format(guest=label),
+            body=_("Changes an account inside the guest directly; the VM must be running."), extra_child=rows,
+        )
+        dialog.add_response("close", _("Close"))
+        dialog.add_response("rename", _("Rename…"))
+        dialog.add_response("password", _("Change password…"))
+        dialog.set_response_appearance("password", Adw.ResponseAppearance.SUGGESTED)
+
+        def on_response(_dialog, response):
+            user = names[chooser.get_selected()]
+            if response == "password":
+                self.ask_guest_password(guest, user)
+            elif response == "rename":
+                self.ask_guest_rename(guest, user)
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    def ask_guest_password(self, guest, user: str) -> None:
+        first = Adw.PasswordEntryRow(title=_("New password"))
+        second = Adw.PasswordEntryRow(title=_("Repeat the new password"))
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.set_size_request(400, -1)
+        rows.append(first)
+        rows.append(second)
+        dialog = Adw.MessageDialog(
+            transient_for=self, heading=_("New password for {user}").format(user=user),
+            body=_("Takes effect at the next sign-in. Auth-Switch does not store it."), extra_child=rows,
+        )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("apply", _("Change password"))
+        dialog.set_response_appearance("apply", Adw.ResponseAppearance.SUGGESTED)
+
+        def update(*_args):
+            dialog.set_response_enabled("apply", bool(first.get_text()) and first.get_text() == second.get_text())
+
+        for row in (first, second):
+            row.connect("changed", update)
+        update()
+
+        def done(_result, error):
+            if error:
+                self.explain(_("The password could not be changed"), str(error))
+            else:
+                self.toast(_("Password of {user} changed").format(user=user), "success")
+
+        def on_response(_dialog, response):
+            password = first.get_text()
+            first.set_text("")
+            second.set_text("")
+            if response == "apply":
+                run_async(lambda: guest.set_password(user, password), done)
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    def ask_guest_rename(self, guest, user: str) -> None:
+        name = Adw.EntryRow(title=_("New account name"))
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.set_size_request(400, -1)
+        rows.append(name)
+        dialog = Adw.MessageDialog(
+            transient_for=self, heading=_("Rename {user}").format(user=user),
+            body=_(
+                "Renames the account, its display name and its profile folder, and replaces the old profile path in "
+                "the registry or configuration. The account must be signed out. You see a preview first."
+            ),
+            extra_child=rows,
+        )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("preview", _("Preview"))
+        dialog.set_response_appearance("preview", Adw.ResponseAppearance.SUGGESTED)
+        name.connect("changed", lambda *_a: dialog.set_response_enabled(
+            "preview", bool(guestaccounts.NAME.fullmatch(name.get_text().strip())) and name.get_text().strip() != user))
+        dialog.set_response_enabled("preview", False)
+
+        def on_response(_dialog, response):
+            if response == "preview":
+                self.preview_guest_rename(guest, user, name.get_text().strip())
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    def preview_guest_rename(self, guest, old: str, new: str) -> None:
+        done_loading = self.busy(_("Looking for every place that names {user}…").format(user=old))
+
+        def previewed(report, error):
+            done_loading()
+            if error:
+                self.explain(_("The rename is not possible"), str(error))
+                return
+            dialog = Adw.MessageDialog(
+                transient_for=self, heading=_("Rename {old} to {new}?").format(old=old, new=new),
+                body=_("This would change:") + "\n\n" + report,
+            )
+            dialog.add_response("cancel", _("Cancel"))
+            dialog.add_response("rename", _("Rename"))
+            dialog.set_response_appearance("rename", Adw.ResponseAppearance.DESTRUCTIVE)
+
+            def renamed(result, rename_error):
+                done_renaming()
+                if rename_error:
+                    self.explain(_("The rename failed"), str(rename_error))
+                else:
+                    self.explain(_("{old} is now {new}").format(old=old, new=new), result + "\n\n" + _(
+                        "Sign in with the new name from now on, also in Remmina."
+                    ))
+
+            def on_response(_dialog, response):
+                nonlocal done_renaming
+                if response == "rename":
+                    done_renaming = self.busy(_("Renaming {user}…").format(user=old))
+                    run_async(lambda: guest.rename(old, new, preview=False), renamed)
+
+            done_renaming = lambda: None  # noqa: E731 - replaced once the rename starts
+            dialog.connect("response", on_response)
+            dialog.present()
+
+        run_async(lambda: guest.rename(old, new, preview=True), previewed)
 
     def edit_permissions(self, host: str, token_id: str) -> None:
         """Switches for the token's roles; another account of the server may be needed to change them."""

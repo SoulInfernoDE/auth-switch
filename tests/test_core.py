@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from authswitch import core, discovery, leaks, mcp, rootshell, sshaccess, update
+from authswitch import core, discovery, guestaccounts, leaks, mcp, rootshell, sshaccess, update
 
 TOKEN = "root@pam!automation"
 SECRET = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0"
@@ -624,6 +624,68 @@ class ClaudeIntegrationTest(unittest.TestCase):
         attribution = leaks.scan_text("Co-Authored-By: Acme Tools <x@y.invalid>", "t", context)
         self.assertEqual([f.kind for f in attribution], ["restricted-attribution"])
         self.assertEqual([f.kind for f in leaks.scan_text("asked acme about it", "t", context)], ["restricted-term"])
+
+
+class GuestAccountTest(unittest.TestCase):
+    def setUp(self):
+        # Compare against the English source texts whatever the locale of the machine running the tests.
+        patcher = mock.patch.object(guestaccounts, "_", lambda text: text)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def guest(self, kind="qemu"):
+        return guestaccounts.Guest("pve.example.com:8006", "pve", kind, 100, core.Account("pve.example.com:8006", TOKEN, True))
+
+    def test_windows_users(self):
+        guest = self.guest()
+        answer = json.dumps([{"Name": "dana", "FullName": "Dana", "Sid": "S-1"}, {"Name": "ops", "FullName": None, "Sid": "S-2"}])
+        with mock.patch.object(guest, "system", return_value=guestaccounts.WINDOWS), mock.patch.object(guest, "run", return_value=(0, answer)):
+            self.assertEqual(guest.users(), [{"name": "dana", "fullname": "Dana"}, {"name": "ops", "fullname": ""}])
+
+    def test_linux_users(self):
+        guest = self.guest()
+        passwd = "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1::/usr/sbin:/usr/sbin/nologin\ndana:x:1000:1000:Dana D,,,:/home/dana:/bin/bash\nsvc:x:1001:1001::/srv:/bin/false\n"
+        with mock.patch.object(guest, "system", return_value=guestaccounts.LINUX), mock.patch.object(guest, "run", return_value=(0, passwd)):
+            self.assertEqual([u["name"] for u in guest.users()], ["root", "dana"])
+
+    def test_password_never_on_a_command_line(self):
+        guest = self.guest("qemu")
+        with mock.patch.object(guest, "_api") as api:
+            guest.set_password("dana", "s3cret pass")
+        api.assert_called_once_with("POST", "/agent/set-user-password", {"username": "dana", "password": "s3cret pass"})
+        container = self.guest("lxc")
+        with mock.patch.object(container, "run", return_value=(0, "")) as run:
+            container.set_password("dana", "s3cret pass")
+        self.assertEqual(run.call_args.args[0], ["chpasswd"])
+        self.assertEqual(run.call_args.kwargs["stdin"], "dana:s3cret pass\n")
+        with self.assertRaises(core.AuthError):
+            guest.set_password("dana; rm -rf /", "x")
+
+    def test_rename_checks_names_and_builds_scripts(self):
+        guest = self.guest()
+        for bad in ("", "1abc", "with space", "a" * 21, "x'y"):
+            with self.assertRaises(core.AuthError, msg=bad):
+                guest.rename("dana", bad, preview=True)
+        script = guestaccounts.windows_rename_script("dana", "erin", preview=True)
+        self.assertIn("$old = 'dana'; $new = 'erin'; $preview = $true", script)
+        self.assertIn("ProfileImagePath", script)
+        linux = guestaccounts.linux_rename_script("dana", "erin", preview=False)
+        self.assertIn("old='dana'; new='erin'; preview=0", linux)
+        self.assertEqual(subprocess.run(["sh", "-n"], input=linux, text=True).returncode, 0)
+        with mock.patch.object(guest, "system", return_value=guestaccounts.LINUX), mock.patch.object(guest, "run", return_value=(0, "ACCOUNT\tdana\terin\nnoise\n")) as run:
+            self.assertEqual(guest.rename("dana", "erin", preview=True), "Account: dana → erin")
+        self.assertEqual(run.call_args.args[0], ["sh", "-s"])
+
+    def test_report_is_translated_from_tags(self):
+        text = guestaccounts.describe("ACCOUNT\tdana\terin\r\nHIVE\tNTUSER.DAT\t74\nLEFTCOUNT\t1\nLEFT\tHKLM\\X\n")
+        self.assertEqual(text.splitlines(), ["Account: dana → erin", "Paths in NTUSER.DAT: 74", "Places still naming the old name: 1", "  HKLM\\X"])
+        self.assertEqual(guestaccounts.describe("ERROR\tsignedin\tdana\n"), "dana is signed in. Sign the account out first, then rename it.")
+
+    def test_containers_need_ssh(self):
+        container = self.guest("lxc")
+        with mock.patch.object(sshaccess, "status", return_value={"enabled": False}):
+            with self.assertRaises(core.AuthError):
+                container.run(["true"])
 
 
 class DiscoveryTest(unittest.TestCase):
