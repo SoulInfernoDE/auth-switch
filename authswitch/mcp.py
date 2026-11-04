@@ -216,6 +216,9 @@ def handle(message: dict) -> dict | None:
             result = _call_tool(params.get("name", ""), params.get("arguments") or {})
         except core.AuthError as error:
             return reply({"content": [{"type": "text", "text": str(error)}], "isError": True})
+        except Exception as error:  # noqa: BLE001 - one failing call must not end the server for every later one
+            detail = f"{type(error).__name__}: {error}"
+            return reply({"content": [{"type": "text", "text": _("Internal error: {detail}").format(detail=detail)}], "isError": True})
         text = json.dumps(result, indent=2, ensure_ascii=False)
         if len(text) > MAX_RESULT_CHARS:
             text = text[:MAX_RESULT_CHARS] + "\n" + _("[Result cut off; narrow the request.]")

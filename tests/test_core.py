@@ -335,6 +335,13 @@ class AccountTest(unittest.TestCase):
             self.assertTrue(result["isError"])
         request.assert_called_once()
 
+    def test_mcp_survives_an_unexpected_error(self):
+        call = {"name": "check_for_leaks", "arguments": {"text": "x"}}
+        with mock.patch.object(mcp, "_call_tool", side_effect=UnicodeDecodeError("utf-8", b"\xdf", 0, 1, "invalid")):
+            result = mcp.handle({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": call})["result"]
+        self.assertTrue(result["isError"])
+        self.assertIn("UnicodeDecodeError", result["content"][0]["text"])
+
     def test_mcp_write_refuses_secrets(self):
         context = leaks.Context(tokens={SECRET: "root"})
         with mock.patch.object(leaks, "gather", return_value=context), mock.patch.object(core, "request") as request:
@@ -916,6 +923,16 @@ class LeakTest(unittest.TestCase):
 
     def kinds(self, text):
         return [finding.kind for finding in leaks.scan_text(text, "t", self.context)]
+
+    def test_repository_with_text_that_is_not_utf8(self):
+        with tempfile.TemporaryDirectory() as folder:
+            git = ["git", "-C", folder, "-c", "user.name=t", "-c", "user.email=t@example.com"]
+            subprocess.run(["git", "init", "-q", folder], check=True)
+            subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "init"], check=True)
+            Path(folder, "mission.txt").write_bytes("Straße für https://pve.example.com:8006/\n".encode("cp1252"))
+            subprocess.run([*git, "add", "mission.txt"], check=True)
+            found = leaks.scan_repository(folder, self.context)
+        self.assertEqual({f.kind for f in found}, {"private-server"})
 
     def test_finds_what_is_private_here(self):
         self.assertEqual(self.kinds("see https://pve.example.com:8006/"), ["private-server"])

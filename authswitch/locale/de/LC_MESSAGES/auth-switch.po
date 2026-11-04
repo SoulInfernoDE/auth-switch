@@ -1877,7 +1877,7 @@ msgstr "Eine Datei von deiner Sperrliste ({term})."
 msgid "{path} does not exist."
 msgstr "{path} existiert nicht."
 
-#: authswitch/leaks.py:250
+#: authswitch/leaks.py:251
 #, python-brace-format
 msgid "{path} is not a git repository."
 msgstr "{path} ist kein Git-Repository."
@@ -2043,15 +2043,20 @@ msgid "Unknown tool: {name}"
 msgstr "Unbekanntes Tool: {name}"
 
 #: authswitch/mcp.py:221
+#, python-brace-format
+msgid "Internal error: {detail}"
+msgstr "Interner Fehler: {detail}"
+
+#: authswitch/mcp.py:224
 msgid "[Result cut off; narrow the request.]"
 msgstr "[Ergebnis abgeschnitten; Anfrage eingrenzen.]"
 
-#: authswitch/mcp.py:223
+#: authswitch/mcp.py:226
 #, python-brace-format
 msgid "Method not found: {method}"
 msgstr "Methode nicht gefunden: {method}"
 
-#: authswitch/mcp.py:235
+#: authswitch/mcp.py:238
 msgid "Parse error"
 msgstr "Syntaxfehler"
 

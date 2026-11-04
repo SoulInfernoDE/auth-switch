@@ -213,7 +213,8 @@ def scan_paths(paths: list[str], context: Context | None = None) -> list[Finding
 
 def _git(repository: str, *args: str) -> subprocess.CompletedProcess:
     try:
-        return subprocess.run(["git", "-C", repository, *args], capture_output=True, text=True, timeout=60)
+        # Files are not always UTF-8 (a Windows-1252 text in a diff, say); a stray byte must not stop the check.
+        return subprocess.run(["git", "-C", repository, *args], capture_output=True, text=True, errors="replace", timeout=60)
     except (OSError, subprocess.SubprocessError) as error:
         raise core.AuthError(str(error)) from None
 
