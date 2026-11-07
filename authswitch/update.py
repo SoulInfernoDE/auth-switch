@@ -5,14 +5,17 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
 from . import __version__, core
 
 RELEASES_API = "https://api.github.com/repos/SoulInfernoDE/auth-switch/releases/latest"
-CHECK_INTERVAL = 12 * 3600
+# Cheap: an unchanged answer comes back as "304 Not Modified", which GitHub does not count.
+CHECK_INTERVAL = 30 * 60
 
 
 def _cache_file() -> Path:
@@ -24,12 +27,22 @@ def _numbers(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in re.findall(r"\d+", version))
 
 
-def _fetch_latest() -> dict:
+def _fetch_latest(previous: dict) -> dict:
+    """The latest release; with the ETag of the previous answer GitHub only says whether it changed."""
     # Deliberately unauthenticated: an update check must not carry any account.
-    request = urllib.request.Request(RELEASES_API, headers={"User-Agent": f"{core.APP}/{__version__}"})
-    with urllib.request.urlopen(request, timeout=6) as response:
-        release = json.load(response)
-    return {"version": str(release["tag_name"]).lstrip("v"), "url": str(release["html_url"])}
+    headers = {"User-Agent": f"{core.APP}/{__version__}"}
+    if previous.get("etag") and previous.get("version"):
+        headers["If-None-Match"] = previous["etag"]
+    request = urllib.request.Request(RELEASES_API, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=6) as response:
+            release = json.load(response)
+            etag = response.headers.get("ETag", "")
+    except urllib.error.HTTPError as error:
+        if error.code == 304:
+            return {key: previous[key] for key in ("version", "url", "etag") if key in previous}
+        raise
+    return {"version": str(release["tag_name"]).lstrip("v"), "url": str(release["html_url"]), "etag": etag}
 
 
 def cached() -> dict | None:
@@ -43,22 +56,44 @@ def cached() -> dict | None:
 
 
 def check(force: bool = False) -> dict | None:
-    """Return ``{"version", "url"}`` if a newer release exists; asks GitHub at most every 12 hours."""
+    """Return ``{"version", "url"}`` if a newer release exists; asks GitHub at most every 30 minutes."""
     if not core.load_settings().get("check_updates"):
         return None
     path = _cache_file()
     try:
-        fresh = time.time() - json.loads(path.read_text(encoding="utf-8"))["checked"] < CHECK_INTERVAL
+        previous = json.loads(path.read_text(encoding="utf-8"))
+        fresh = time.time() - previous["checked"] < CHECK_INTERVAL
     except (OSError, ValueError, KeyError, TypeError):
-        fresh = False
+        previous, fresh = {}, False
     if force or not fresh:
         try:
-            latest = _fetch_latest()
+            latest = _fetch_latest(previous if isinstance(previous, dict) else {})
         except (OSError, ValueError, KeyError):
             return cached()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({**latest, "checked": time.time()}), encoding="utf-8")
     return cached()
+
+
+_checking = threading.Lock()
+_started = 0.0
+
+
+def check_in_background() -> None:
+    """Refresh the cached answer without waiting for it, at most one check at a time and one a minute."""
+    global _started
+    if time.time() - _started < 60:
+        return
+    _started = time.time()
+
+    def run():
+        if _checking.acquire(blocking=False):
+            try:
+                check()
+            finally:
+                _checking.release()
+
+    threading.Thread(target=run, daemon=True).start()
 
 
 def installed_version() -> str:

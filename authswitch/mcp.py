@@ -228,10 +228,12 @@ def handle(message: dict) -> dict | None:
 
 def main() -> int:
     # Refreshes the cached answer in the background; the result shows up as a notice.
-    threading.Thread(target=update.check, daemon=True).start()
+    update.check_in_background()
     for line in sys.stdin:
         if not line.strip():
             continue
+        # A server may run for hours; it looks again now and then, the answer shows with a later call.
+        update.check_in_background()
         try:
             message = json.loads(line)
         except ValueError:

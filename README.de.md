@@ -347,10 +347,14 @@ Die Prüfung liest nur Text; was ein Screenshot zeigt, kann sie nicht erkennen.
 
 ## Updates
 
-Beim Start fragen Fenster und MCP-Server GitHub nach dem neuesten Release,
-höchstens alle 12 Stunden und ohne ein Konto zu verwenden. Abschalten lässt es
-sich mit **Beim Start nach Updates suchen**. Installiert wird nichts
-automatisch.
+Fenster und MCP-Server fragen GitHub beim Start nach dem neuesten Release und
+danach alle 30 Minuten, solange sie laufen, ohne ein Konto zu verwenden; GitHub
+antwortet nur, ob sich seit dem letzten Mal etwas geändert hat. **Aktualisieren**
+fragt sofort. Ein neueres Release erscheint als Banner im Fenster und als
+Hinweis in den Antworten des MCP-Servers. Ist eine neuere Version schon
+installiert, während das Fenster noch die alte ausführt, bietet das Banner
+**Neu starten** an. Abschalten lässt sich die Prüfung mit **Beim Start nach
+Updates suchen**. Installiert wird nichts automatisch.
 
 ## Entwicklung
 

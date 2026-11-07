@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import sys
@@ -58,7 +59,7 @@ class Window(Adw.ApplicationWindow):
         add_button.connect("clicked", lambda *_args: self.ask_account())
         header.pack_start(add_button)
         refresh_button = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Refresh"))
-        refresh_button.connect("clicked", lambda *_args: self.reload(recheck=True))
+        refresh_button.connect("clicked", lambda *_args: (self.reload(recheck=True), self.look_for_update(force=True)))
         about_button = Gtk.Button(icon_name="help-about-symbolic", tooltip_text=_("About"))
         about_button.connect("clicked", lambda *_args: self.show_about())
         header.pack_end(about_button)
@@ -88,7 +89,7 @@ class Window(Adw.ApplicationWindow):
         self.toasts = Adw.ToastOverlay(child=self.split)
 
         self.update_banner = Adw.Banner(button_label=_("Show"))
-        self.update_banner.connect("button-clicked", lambda *_args: self.open_uri(self.update_url))
+        self.update_banner.connect("button-clicked", self.on_update_banner)
         view = Adw.ToolbarView(content=self.toasts)
         view.add_top_bar(header)
         view.add_top_bar(self.update_banner)
@@ -1830,14 +1831,34 @@ class Window(Adw.ApplicationWindow):
 
         run_async(core.claude_register if register else core.claude_unregister, done)
 
-    def look_for_update(self) -> None:
+    def look_for_update(self, force: bool = False) -> None:
+        """Banner for a newer release, or for a newer version already installed while this one runs."""
+        if not getattr(self, "update_timer", 0):
+            # An open window keeps looking; GitHub is only asked when its last answer is old.
+            self.update_timer = GLib.timeout_add_seconds(update.CHECK_INTERVAL, lambda: self.look_for_update() or True)
+
         def done(latest, _error):
+            installed = update.outdated_process()
+            if installed:
+                self.update_url = ""
+                self.update_banner.set_title(_("Auth-Switch {version} is installed; restart to use it").format(version=installed))
+                self.update_banner.set_button_label(_("Restart"))
+                self.update_banner.set_revealed(True)
+                return
             self.update_banner.set_revealed(bool(latest))
             if latest:
                 self.update_banner.set_title(_("Auth-Switch {version} is available").format(version=latest["version"]))
+                self.update_banner.set_button_label(_("Show"))
                 self.update_url = latest["url"]
 
-        run_async(update.check, done)
+        run_async(lambda: update.check(force=force), done)
+
+    def on_update_banner(self, *_args) -> None:
+        if self.update_url:
+            self.open_uri(self.update_url)
+            return
+        # Start the installed version in place of this process.
+        os.execv(sys.executable, [sys.executable, "-m", "authswitch"])
 
     def on_updates_toggled(self, row, _pspec) -> None:
         self.settings["check_updates"] = row.get_active()

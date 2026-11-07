@@ -323,9 +323,13 @@ The check reads text only; it cannot see what a screenshot shows.
 
 ## Updates
 
-On start the window and the MCP server ask GitHub for the latest release, at
-most every 12 hours and without using any account. Turn it off with **Check
-for updates on start**. Nothing is installed automatically.
+The window and the MCP server ask GitHub for the latest release on start and
+then every 30 minutes while they run, without using any account; GitHub only
+answers whether anything changed since the last time. **Refresh** asks right
+away. A newer release shows as a banner in the window and as a notice in the
+MCP server's answers. When a newer version is already installed but the window
+still runs the old one, the banner offers **Restart**. Turn the check off with
+**Check for updates on start**. Nothing is installed automatically.
 
 ## Development
 

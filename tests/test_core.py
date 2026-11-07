@@ -1004,6 +1004,25 @@ class UpdateTest(unittest.TestCase):
         fetch.assert_called_once()
         self.assertTrue(any("99.0.0" in notice for notice in mcp.notices()))
 
+    def test_an_unchanged_release_is_asked_with_its_etag(self):
+        answer = mock.MagicMock()
+        answer.__enter__.return_value = answer
+        answer.headers = {"ETag": 'W/"abc"'}
+        answer.read.return_value = json.dumps({"tag_name": "v99.0.0", "html_url": "https://example.com/r"}).encode()
+        not_modified = update.urllib.error.HTTPError(update.RELEASES_API, 304, "Not Modified", {}, None)
+        with mock.patch.object(update.urllib.request, "urlopen", side_effect=[answer, not_modified]) as urlopen:
+            self.assertEqual(update.check()["version"], "99.0.0")
+            self.assertEqual(update.check(force=True)["version"], "99.0.0")
+        self.assertEqual(urlopen.call_args_list[1].args[0].get_header("If-none-match"), 'W/"abc"')
+
+    def test_the_check_is_repeated_after_half_an_hour(self):
+        newer = {"version": "99.0.0", "url": "https://example.com/r"}
+        with mock.patch.object(update, "_fetch_latest", return_value=newer) as fetch:
+            update.check()
+            with mock.patch.object(update.time, "time", return_value=update.time.time() + update.CHECK_INTERVAL + 1):
+                update.check()
+        self.assertEqual(fetch.call_count, 2)
+
     def test_switch_turns_the_check_off(self):
         core.save_settings({"check_updates": False})
         with mock.patch.object(update, "_fetch_latest") as fetch:
