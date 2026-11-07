@@ -57,14 +57,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.4.6_all.deb
+sudo apt install ./auth-switch_0.4.7_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.6-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.7-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -79,7 +79,13 @@ pipx install --system-site-packages auth_switch-0.4.6-py3-none-any.whl
    hat.
 2. In Auth-Switch **+** drücken. Auth-Switch durchsucht deine lokalen Netze
    nach Proxmox-VE-Servern und trägt die Adresse des ersten gefundenen ein;
-   wähle einen anderen aus der Liste oder gib eine Adresse ein. Dann Token-ID
+   wähle einen anderen aus der Liste oder gib eine Adresse ein. Ein Punkt unter
+   der Adresse zeigt schon beim Tippen, ob sie antwortet: grün für Proxmox VE
+   (mit Knoten und Port), gelb für einen anderen Webserver, rot für keine
+   Antwort. Ein bloßer Name wie `pve.example.com` bedeutet Port 8006; antwortet
+   dort nichts, wird auch Port 443 versucht, auf dem ein Server hinter einem
+   Reverse-Proxy antwortet, und dann dieser genommen. Eine Adresse mit
+   `https://` ohne Port bedeutet wie im Browser Port 443. Dann Token-ID
    (`benutzer@realm!name`) und Geheimnis eingeben.
 3. Vertraut dein System dem Zertifikat des Servers nicht, zeigt Auth-Switch
    dessen SHA-256-Fingerabdruck. Vergleiche ihn mit **Knoten → System →

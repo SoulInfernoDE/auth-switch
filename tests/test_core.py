@@ -34,7 +34,7 @@ class AccountTest(unittest.TestCase):
         for patcher in patches:
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.account = core.add_account("https://PVE.example.com/#v1", TOKEN, f" {SECRET} ")
+        self.account = core.add_account("https://PVE.example.com:8006/#v1", TOKEN, f" {SECRET} ")
 
     def test_add_account(self):
         self.assertEqual(self.account, core.Account("pve.example.com:8006", TOKEN, True))
@@ -358,6 +358,18 @@ class InputTest(unittest.TestCase):
         self.assertEqual(core.normalize_host("[fd00::5]"), "[fd00::5]:8006")
         self.assertEqual(core.split_host("[fd00::5]:8006"), ("fd00::5", 8006))
         self.assertEqual(core.normalize_host("  "), "")
+        # Like a browser: https:// without a port is 443 (a reverse proxy); a bare name is 8006.
+        self.assertEqual(core.normalize_host("https://pve.example.com/"), "pve.example.com:443")
+        self.assertEqual(core.normalize_host("pve.example.com"), "pve.example.com:8006")
+        self.assertEqual(core.normalize_host("https://[fd00::5]"), "[fd00::5]:443")
+        self.assertTrue(core.has_port("https://pve:443/x"))
+        self.assertFalse(core.has_port("[fd00::5]"))
+
+    def test_a_name_without_port_finds_a_server_on_443(self):
+        account = core.Account("pve.example.com:443", TOKEN, True)
+        self.assertTrue(core._on_host(account, "pve.example.com"))
+        self.assertTrue(core._on_host(account, "https://pve.example.com"))
+        self.assertFalse(core._on_host(account, "pve.example.com:8006"))
 
     def test_paths_cannot_leave_the_api_or_fetch_credentials(self):
         for method, path in (
@@ -818,6 +830,23 @@ class GuestPowerAndFilesTest(unittest.TestCase):
 
 
 class DiscoveryTest(unittest.TestCase):
+    def test_check_tries_443_after_8006(self):
+        answers = {8006: (discovery.DOWN, None), 443: (discovery.PROXMOX, "pve")}
+        with mock.patch.object(discovery, "_ask", side_effect=lambda address, port, timeout: answers[port]) as ask:
+            self.assertEqual(discovery.check("pve.example.com"),
+                             {"host": "pve.example.com:443", "state": "proxmox", "name": "pve", "tried": [443]})
+            self.assertEqual(discovery.check("pve.example.com:8006")["tried"], [8006])
+            self.assertEqual(discovery.check("https://pve.example.com")["host"], "pve.example.com:443")
+        self.assertEqual([c.args[1] for c in ask.call_args_list], [8006, 443, 8006, 443])
+
+    def test_check_names_every_port_it_tried(self):
+        with mock.patch.object(discovery, "_ask", return_value=(discovery.DOWN, None)):
+            self.assertEqual(discovery.check("pve.example.com")["tried"], [8006, 443])
+
+    def test_check_reports_another_web_server(self):
+        with mock.patch.object(discovery, "_ask", return_value=(discovery.OTHER, None)):
+            self.assertEqual(discovery.check("example.com")["state"], "other")
+
     def test_local_networks(self):
         interfaces = [
             {"ifname": "lo", "addr_info": [{"local": "127.0.0.1", "prefixlen": 8}]},

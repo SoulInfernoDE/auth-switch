@@ -131,13 +131,25 @@ def save_settings(settings: dict) -> None:
 
 
 def normalize_host(text: str) -> str:
-    """Turn a pasted address such as ``https://PVE.lan:8006/#v1`` into ``pve.lan:8006``."""
-    host = text.strip().lower().split("://", 1)[-1].split("/", 1)[0].split("#", 1)[0]
+    """Turn a pasted address such as ``https://PVE.lan:8006/#v1`` into ``pve.lan:8006``.
+
+    Without a port, an address with ``https://`` means port 443 as in a browser (a server behind a
+    reverse proxy); a bare name means the Proxmox VE port 8006.
+    """
+    text = text.strip().lower()
+    scheme, separator, rest = text.partition("://")
+    host = (rest if separator else text).split("/", 1)[0].split("#", 1)[0].split("?", 1)[0]
     if not host:
         return ""
-    if host.startswith("["):
-        return host if "]:" in host else f"{host}:{DEFAULT_PORT}"
-    return host if ":" in host else f"{host}:{DEFAULT_PORT}"
+    if has_port(host):
+        return host
+    return f"{host}:{443 if separator and scheme in ('https', 'http') else DEFAULT_PORT}"
+
+
+def has_port(text: str) -> bool:
+    """Whether an address names its port itself (``pve:8006``, ``[fd00::5]:443``)."""
+    host = text.strip().split("://", 1)[-1].split("/", 1)[0]
+    return "]:" in host if host.startswith("[") else ":" in host
 
 
 def split_host(host: str) -> tuple[str, int]:
@@ -385,7 +397,12 @@ def add_account(host: str, token_id: str, secret: str, fingerprint: str = "") ->
 
 
 def _on_host(account: Account, host: str | None) -> bool:
-    return not host or account.host in (host, normalize_host(host))
+    if not host:
+        return True
+    if account.host in (host, normalize_host(host)):
+        return True
+    # A name without a port also finds a server on another port than 8006.
+    return not has_port(host) and split_host(account.host)[0] == host.strip().lower().split("://", 1)[-1].strip("/")
 
 
 def find_account(token_or_user: str, host: str | None = None) -> Account:

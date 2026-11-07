@@ -996,12 +996,80 @@ class Window(Adw.ApplicationWindow):
         spinner = Gtk.Spinner()
         found.add_suffix(spinner)
         found.add_suffix(search)
+        # Whether the typed address answers, shown while typing
+        reach = Adw.ActionRow(title=_("Without a port, https://… means port 443 as in a browser"), use_markup=False)
+        reach.add_css_class("property")
+        dot = Gtk.Image(icon_name="media-record-symbolic")
+        checking = Gtk.Spinner()
+        reach.add_prefix(dot)
+        reach.add_prefix(checking)
         rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         rows.add_css_class("boxed-list")
         rows.set_size_request(420, -1)
-        for row in (found, server, token, secret):
+        for row in (found, server, reach, token, secret):
             rows.append(row)
         servers: list[dict] = []
+        state = {"typed": None, "resolved": None, "timer": 0}
+
+        def show_reach(result, error, typed):
+            if typed != server.get_text():
+                return  # an answer for text that has been changed since
+            checking.stop()
+            checking.set_visible(False)
+            dot.set_visible(True)
+            for css in ("success", "warning", "error"):
+                dot.remove_css_class(css)
+            if error or not result or not result["host"]:
+                dot.add_css_class("error")
+                reach.set_title(_("Not reachable"))
+                return
+            state["resolved"] = (typed, result["host"])
+            port = core.split_host(result["host"])[1]
+            if result["state"] == discovery.PROXMOX:
+                dot.add_css_class("success")
+                reach.set_title(_("Proxmox VE reachable: {node}, port {port}").format(node=result["name"], port=port))
+            elif result["state"] == discovery.OTHER:
+                dot.add_css_class("warning")
+                reach.set_title(_("Answers on port {port}, but is no Proxmox VE").format(port=port))
+            else:
+                dot.add_css_class("error")
+                ports = ", ".join(str(tried) for tried in result.get("tried") or [port])
+                reach.set_title(_("Not reachable (tried port {ports})").format(ports=ports))
+
+        def check_soon(*_args):
+            if state["timer"]:
+                GLib.source_remove(state["timer"])
+                state["timer"] = 0
+            state["resolved"] = None
+            typed = server.get_text()
+            if not core.normalize_host(typed):
+                checking.stop()
+                checking.set_visible(False)
+                dot.set_visible(False)
+                reach.set_title(_("Without a port, https://… means port 443 as in a browser"))
+                return
+            checking.set_visible(True)
+            checking.start()
+            dot.set_visible(False)
+            reach.set_title(_("Checking whether the server answers…"))
+
+            def start():
+                state["timer"] = 0
+                run_async(lambda: discovery.check(typed), lambda result, error: show_reach(result, error, typed))
+                return False
+
+            # Only once typing pauses, not for every letter
+            state["timer"] = GLib.timeout_add(600, start)
+
+        def target_host() -> str:
+            """The address to use: the one that answered (443 for a name behind a reverse proxy) or the typed one."""
+            typed = server.get_text()
+            if state["resolved"] and state["resolved"][0] == typed:
+                return state["resolved"][1]
+            return core.normalize_host(typed)
+
+        server.connect("changed", check_soon)
+        check_soon()
         known = {account.host for account in core.list_accounts()}
 
         def discovered(result, error):
@@ -1058,9 +1126,9 @@ class Window(Adw.ApplicationWindow):
 
         def on_response(_dialog, response):
             if response == "add":
-                self.add_account(core.normalize_host(server.get_text()), token.get_text().strip(), secret.get_text())
+                self.add_account(target_host(), token.get_text().strip(), secret.get_text())
 
-        web.connect("clicked", lambda *_args: self.open_uri(core.web_interface(core.normalize_host(server.get_text()))))
+        web.connect("clicked", lambda *_args: self.open_uri(core.web_interface(target_host())))
         for row in (server, token, secret):
             row.connect("changed", update)
         update()

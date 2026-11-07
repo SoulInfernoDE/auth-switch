@@ -55,14 +55,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.4.6_all.deb
+sudo apt install ./auth-switch_0.4.7_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.6-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.7-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -76,8 +76,13 @@ pipx install --system-site-packages auth_switch-0.4.6-py3-none-any.whl
    rights at all.
 2. In Auth-Switch press **+**. Auth-Switch searches your local networks for
    Proxmox VE servers and fills in the address of the first one it finds;
-   choose another from the list or type an address. Then enter the token ID
-   (`user@realm!name`) and the secret.
+   choose another from the list or type an address. A dot below the address
+   shows while you type whether it answers: green for Proxmox VE (with node
+   and port), yellow for another web server, red for no answer. A bare name
+   such as `pve.example.com` means port 8006; if nothing answers there, port
+   443 is tried too, where a server behind a reverse proxy answers, and used
+   when it does. An address with `https://` but no port means 443, as in a
+   browser. Then enter the token ID (`user@realm!name`) and the secret.
 3. If the server's certificate is not trusted by your system, Auth-Switch
    shows its SHA-256 fingerprint. Compare it with **Node → System →
    Certificates** or `pvenode cert info` on the server and confirm only if it
