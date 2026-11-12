@@ -1,6 +1,7 @@
 import gettext
 import http.server
 import json
+from datetime import datetime
 import os
 import ssl
 import subprocess
@@ -51,6 +52,29 @@ class AccountTest(unittest.TestCase):
             with self.assertRaises(core.AuthError):
                 core.add_account("pve.example.com", "ops@pve!ci", "bad")
         self.assertNotIn("bad", self.keyring.values())
+
+    def test_last_known_expiry_explains_a_rejected_token(self):
+        with mock.patch.object(core, "validate", return_value=core.Profile(valid=True, expires=1_700_000_000)):
+            core.fetch_profile(self.account)
+        with mock.patch.object(core, "validate", return_value=core.Profile(valid=False)):
+            profile = core.fetch_profile(self.account)
+        self.assertEqual((profile.valid, profile.expires), (False, 1_700_000_000))
+        self.assertEqual(core.expiry_info(profile.expires)["state"], "expired")
+        described = core.describe_accounts()[0]
+        self.assertEqual((described["expiry"], described["expires"]), ("expired", "2023-11-14T22:13:20Z"))
+        core.remove_account(self.account)
+        self.assertIsNone(core.stored_expiry(self.account.host, TOKEN))
+
+    def test_mcp_notices_expiring_tokens(self):
+        accounts = [
+            {"host": "pve.example.com", "token_id": TOKEN, "expiry": "expiring", "expires": "2030-01-02T00:00:00Z", "expires_in_days": 3},
+            {"host": "pve.example.com", "token_id": "ops@pve!ci", "expiry": "expired", "expires": "2020-01-02T00:00:00Z", "expires_in_days": 0},
+            {"host": "pve.example.com", "token_id": "ops@pve!x", "expiry": "never", "expires": None, "expires_in_days": None},
+        ]
+        found = mcp.expiry_notices(accounts)
+        self.assertEqual(len(found), 2)
+        self.assertIn("2030-01-02", found[0])
+        self.assertIn("2020-01-02", found[1])
 
     def test_secret_is_not_written_to_disk(self):
         for path in Path(self.dir.name).rglob("*"):
@@ -394,12 +418,43 @@ class InputTest(unittest.TestCase):
 
     def test_token_without_rights_is_recognised(self):
         answers = {"/version": {"version": "8.2.4"}, "/access/permissions": {}}
-        with mock.patch.object(core, "request", side_effect=lambda h, t, s, m, path, *a, **k: answers[path]):
+        with mock.patch.object(core, "request", side_effect=lambda h, t, s, m, path, *a, **k: answers.get(path)):
             profile = core.validate("pve.example.com:8006", TOKEN, SECRET)
         self.assertEqual((profile.valid, profile.has_rights), (True, False))
         answers["/access/permissions"] = {"/": {"Sys.Audit": 1}}
-        with mock.patch.object(core, "request", side_effect=lambda h, t, s, m, path, *a, **k: answers[path]):
+        with mock.patch.object(core, "request", side_effect=lambda h, t, s, m, path, *a, **k: answers.get(path)):
             self.assertTrue(core.validate("pve.example.com:8006", TOKEN, SECRET).has_rights)
+
+    def test_expiry_is_the_earlier_of_token_and_user(self):
+        user, name = TOKEN.split("!")
+        token_path, user_path = f"/access/users/{user}/token/{name}", f"/access/users/{user}"
+        answers = {"/version": {"version": "8.2.4"}, "/access/permissions": {"/": {}}}
+        for token_expire, user_expire, expected in ((0, 0, 0), (2000, 0, 2000), (0, 1500, 1500), (2000, 1500, 1500)):
+            answers.update({token_path: {"expire": token_expire}, user_path: {"expire": user_expire}})
+            with mock.patch.object(core, "request", side_effect=lambda h, t, s, m, path, *a, **k: answers.get(path)):
+                self.assertEqual(core.validate("pve.example.com:8006", TOKEN, SECRET).expires, expected)
+
+        def refuse(h, t, s, m, path, *a, **k):
+            if path == user_path:
+                raise core.AuthError("HTTP 403 Forbidden")
+            return answers.get(path)
+
+        with mock.patch.object(core, "request", side_effect=refuse):
+            self.assertIsNone(core.validate("pve.example.com:8006", TOKEN, SECRET).expires)
+
+    def test_expiry_info(self):
+        # Local noon, so whole days never cross midnight and the result does not depend on the time zone.
+        now = datetime(2027, 1, 15, 12).timestamp()
+        day = 86400
+        self.assertEqual(core.expiry_info(None, now)["state"], "unknown")
+        self.assertEqual(core.expiry_info(0, now), {"state": "never", "date": None, "days": None})
+        self.assertEqual(core.expiry_info(now + 30 * day, now)["state"], "valid")
+        self.assertEqual(core.expiry_info(now + 30 * day, now)["days"], 30)
+        self.assertEqual(core.expiry_info(now + 3 * day + 5, now)["state"], "expiring")
+        self.assertEqual(core.expiry_info(now + 5 * day - 60, now)["days"], 5)
+        self.assertEqual(core.expiry_info(now + 3600, now)["days"], 0)
+        self.assertEqual(core.expiry_info(now - 1, now)["state"], "expired")
+        self.assertEqual(core.expiry_info(1_800_000_000, 0)["date"], "2027-01-15T08:00:00Z")
 
     def test_form_encoding(self):
         self.assertEqual(core._encode({"onboot": True, "memory": 2048, "skip": None}), "onboot=1&memory=2048")

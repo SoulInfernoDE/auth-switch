@@ -3,4 +3,6 @@
 import gettext
 from pathlib import Path
 
-_ = gettext.translation("auth-switch", Path(__file__).parent / "locale", fallback=True).gettext
+_translation = gettext.translation("auth-switch", Path(__file__).parent / "locale", fallback=True)
+_ = _translation.gettext
+ngettext = _translation.ngettext

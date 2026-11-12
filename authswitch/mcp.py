@@ -11,7 +11,7 @@ import sys
 import threading
 
 from . import __version__, core, leaks, update
-from .i18n import _
+from .i18n import _, ngettext
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 HOSTNAME = {"type": "string", "description": _("Server as host or host:port, only needed if several are set up")}
@@ -21,7 +21,8 @@ TOOLS = [
         "name": "list_proxmox_accounts",
         "description": _(
             "List the Proxmox VE accounts (API tokens) Auth-Switch manages, per server, including which one is "
-            "active, whether the token still works and the Proxmox VE version. Secrets are never returned."
+            "active, whether the token still works, when it expires and the Proxmox VE version. "
+            "Secrets are never returned."
         ),
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
         "annotations": {"readOnlyHint": True},
@@ -145,6 +146,23 @@ def notices() -> list[str]:
     return found
 
 
+def expiry_notices(accounts: list[dict]) -> list[str]:
+    """Tokens that have run out or will within core.EXPIRY_WARNING_DAYS."""
+    found = []
+    for account in accounts:
+        date = (account.get("expires") or "")[:10]
+        if account.get("expiry") == "expired":
+            found.append(_("The token {token} on {host} expired on {date}.").format(token=account["token_id"], host=account["host"], date=date))
+        elif account.get("expiry") == "expiring":
+            message = ngettext(
+                "The token {token} on {host} expires on {date}, in {days} day.",
+                "The token {token} on {host} expires on {date}, in {days} days.",
+                account["expires_in_days"],
+            )
+            found.append(message.format(token=account["token_id"], host=account["host"], date=date, days=account["expires_in_days"]))
+    return found
+
+
 def _refuse_secrets(*values: object) -> None:
     """Stop a call that would carry a secret or private key to a server."""
     text = "\n".join(json.dumps(value, ensure_ascii=False) for value in values if value is not None)
@@ -158,9 +176,11 @@ def _call_tool(name: str, arguments: dict) -> object:
     params = arguments.get("params") if isinstance(arguments.get("params"), dict) else None
     host = text.get("hostname")
     if name == "list_proxmox_accounts":
-        result: dict = {"accounts": core.describe_accounts()}
-        if notices():
-            result["notices"] = notices()
+        accounts = core.describe_accounts()
+        result: dict = {"accounts": accounts}
+        found = notices() + expiry_notices(accounts)
+        if found:
+            result["notices"] = found
         return result
     if name == "switch_proxmox_account":
         if not text.get("token_id"):

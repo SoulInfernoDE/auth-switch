@@ -19,7 +19,9 @@ import ssl
 import subprocess
 import sys
 import urllib.parse
+import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
@@ -61,6 +63,8 @@ class Profile:
     detail: str = ""
     # False if the token may do nothing at all, typically privilege separation without any granted role.
     has_rights: bool | None = None
+    # Unix time at which the token stops working, 0 if it never expires, None if unknown.
+    expires: int | None = None
 
 
 # --- files ------------------------------------------------------------------
@@ -104,6 +108,11 @@ def _load() -> dict[str, dict]:
                     if isinstance(paths, list)
                 } if isinstance(entry.get("blocked"), dict) else {},
                 "ssh": entry.get("ssh") if isinstance(entry.get("ssh"), dict) else {},
+                "expires": {
+                    str(token): int(value)
+                    for token, value in (entry.get("expires") or {}).items()
+                    if isinstance(value, int) and not isinstance(value, bool)
+                } if isinstance(entry.get("expires"), dict) else {},
             }
     return hosts
 
@@ -348,6 +357,19 @@ def request(
         return text
 
 
+def _expiry(host: str, token_id: str, secret: str, fingerprint: str | None = None) -> int | None:
+    """When the token stops working: the earlier of its own expiry and its user's, 0 if neither expires."""
+    user = token_id.split("!", 1)[0]
+    dates = []
+    for path in (_token_path(token_id), f"/access/users/{urllib.parse.quote(user, safe='@')}"):
+        try:
+            data = request(host, token_id, secret, "GET", path, fingerprint=fingerprint)
+            dates.append(int((data or {}).get("expire") or 0))
+        except (AuthError, AttributeError, TypeError, ValueError):
+            return None
+    return min((date for date in dates if date > 0), default=0)
+
+
 def validate(host: str, token_id: str, secret: str, fingerprint: str | None = None) -> Profile:
     try:
         data = request(host, token_id, secret, "GET", "/version", fingerprint=fingerprint)
@@ -360,17 +382,55 @@ def validate(host: str, token_id: str, secret: str, fingerprint: str | None = No
         rights = bool(request(host, token_id, secret, "GET", "/access/permissions", fingerprint=fingerprint))
     except AuthError:
         rights = None
-    return Profile(valid=True, version=str(version), has_rights=rights)
+    expires = _expiry(host, token_id, secret, fingerprint)
+    return Profile(valid=True, version=str(version), has_rights=rights, expires=expires)
+
+
+def stored_expiry(host: str, token_id: str) -> int | None:
+    """The expiry seen at the last successful check; it explains a token the server no longer accepts."""
+    return _load().get(host, {}).get("expires", {}).get(token_id)
+
+
+def _remember_expiry(host: str, token_id: str, expires: int) -> None:
+    hosts = _load()
+    if host in hosts and hosts[host]["expires"].get(token_id) != expires:
+        hosts[host]["expires"][token_id] = expires
+        _write_private(accounts_file(), hosts)
 
 
 def fetch_profile(account: Account) -> Profile:
     try:
         secret = lookup_secret(account.host, account.token_id)
     except AuthError as error:
-        return Profile(valid=None, detail=str(error))
+        return Profile(valid=None, detail=str(error), expires=stored_expiry(account.host, account.token_id))
     if not secret:
-        return Profile(valid=False)
-    return validate(account.host, account.token_id, secret)
+        return Profile(valid=False, expires=stored_expiry(account.host, account.token_id))
+    profile = validate(account.host, account.token_id, secret)
+    if profile.valid and profile.expires is not None:
+        _remember_expiry(account.host, account.token_id, profile.expires)
+    elif profile.expires is None:
+        profile.expires = stored_expiry(account.host, account.token_id)
+    return profile
+
+
+EXPIRY_WARNING_DAYS = 14
+
+
+def expiry_info(expires: int | None, now: float | None = None) -> dict:
+    """Describe an expiry for people and tools.
+
+    ``state`` is ``unknown``, ``never``, ``valid``, ``expiring`` (within EXPIRY_WARNING_DAYS) or ``expired``;
+    ``days`` counts calendar days left in local time, so 0 means "today".
+    """
+    if expires is None:
+        return {"state": "unknown", "date": None, "days": None}
+    if expires == 0:
+        return {"state": "never", "date": None, "days": None}
+    now = time.time() if now is None else now
+    days = (datetime.fromtimestamp(expires).date() - datetime.fromtimestamp(now).date()).days
+    state = "expired" if expires <= now else "expiring" if days < EXPIRY_WARNING_DAYS else "valid"
+    date = datetime.fromtimestamp(expires, timezone.utc).isoformat().replace("+00:00", "Z")
+    return {"state": state, "date": date, "days": max(days, 0)}
 
 
 # --- actions ----------------------------------------------------------------
@@ -392,6 +452,8 @@ def add_account(host: str, token_id: str, secret: str, fingerprint: str = "") ->
     if token_id not in entry["tokens"]:
         entry["tokens"].append(token_id)
     entry["active"], entry["fingerprint"] = token_id, fingerprint
+    if profile.expires is not None:
+        entry.setdefault("expires", {})[token_id] = profile.expires
     _write_private(accounts_file(), hosts)
     return Account(host, token_id, True)
 
@@ -435,6 +497,7 @@ def remove_account(account: Account) -> None:
     if not entry:
         return
     entry["tokens"] = [token for token in entry["tokens"] if token != account.token_id]
+    entry["expires"].pop(account.token_id, None)
     if not entry["tokens"]:
         del hosts[account.host]
     elif entry["active"] == account.token_id:
@@ -1052,7 +1115,14 @@ def describe_accounts(check: bool = True) -> list[dict]:
         }
         if check:
             profile = fetch_profile(account)
-            entry.update(token_valid=profile.valid, version=profile.version)
+            expiry = expiry_info(profile.expires)
+            entry.update(
+                token_valid=profile.valid,
+                version=profile.version,
+                expiry=expiry["state"],
+                expires=expiry["date"],
+                expires_in_days=expiry["days"],
+            )
         described.append(entry)
     return described
 

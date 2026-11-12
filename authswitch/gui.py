@@ -17,7 +17,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import __version__, core, discovery, guestaccounts, guestfiles, rootshell, sound, sshaccess, update  # noqa: E402
-from .i18n import _  # noqa: E402
+from .i18n import _, ngettext  # noqa: E402
 
 APP_ID = ICON_NAME = "dev.authswitch.AuthSwitch"
 
@@ -49,6 +49,7 @@ class Window(Adw.ApplicationWindow):
         super().__init__(application=app, title="Auth-Switch", default_width=460, default_height=760)
         self.settings = core.load_settings()
         self.profiles: dict[core.Account, core.Profile] = {}
+        self.expiry_warned: set[core.Account] = set()
         self.host_groups: list[Adw.PreferencesGroup] = []
         self.generation = 0
         self.reload_source = 0
@@ -277,9 +278,49 @@ class Window(Adw.ApplicationWindow):
             run_async(lambda: core.fetch_profile(account), show)
         return row
 
+    @staticmethod
+    def expiry_text(expiry: dict, expires: int | None) -> str:
+        if expiry["state"] == "never":
+            return _("No expiry date")
+        if expiry["state"] == "unknown":
+            return ""
+        date = GLib.DateTime.new_from_unix_local(expires).format("%x")
+        if expiry["state"] == "expired":
+            return _("Expired on {date}").format(date=date)
+        if expiry["state"] == "expiring":
+            if expiry["days"] == 0:
+                return _("Expires today")
+            return ngettext("Expires in {days} day", "Expires in {days} days", expiry["days"]).format(days=expiry["days"])
+        return _("Valid until {date}").format(date=date)
+
+    def show_expiry_warning(self, row, account: core.Account, expiry: dict, text: str) -> None:
+        """Mark a token that runs out soon or has run out, and say so once per start."""
+        if expiry["state"] not in ("expiring", "expired"):
+            return
+        icon = Gtk.Image(icon_name="dialog-warning-symbolic", tooltip_text=text)
+        icon.add_css_class("warning")
+        row.add_suffix(icon)
+        if account not in self.expiry_warned:
+            self.expiry_warned.add(account)
+            name = account.token_id
+            if expiry["state"] == "expired":
+                self.toast(_("The token {token} has expired").format(token=name), "error")
+            elif expiry["days"] == 0:
+                self.toast(_("The token {token} expires today").format(token=name))
+            elif expiry["days"] < 7:
+                message = ngettext("The token {token} expires in {days} day", "The token {token} expires in {days} days", expiry["days"])
+                self.toast(message.format(token=name, days=expiry["days"]))
+
     def show_profile(self, row, account: core.Account, profile: core.Profile) -> None:
+        expiry = core.expiry_info(profile.expires)
+        expiry_text = self.expiry_text(expiry, profile.expires)
         if profile.valid is False:
-            row.set_subtitle(_("Token invalid – enter the secret again"))
+            if expiry["state"] == "expired":
+                row.set_subtitle(_("Token expired on {date} – enter a new secret").format(
+                    date=GLib.DateTime.new_from_unix_local(profile.expires).format("%x")))
+                self.show_expiry_warning(row, account, expiry, expiry_text)
+            else:
+                row.set_subtitle(_("Token invalid – enter the secret again"))
             if not account.active:
                 row.button.set_label(_("Enter again"))
             return
@@ -298,7 +339,11 @@ class Window(Adw.ApplicationWindow):
             parts.append(_("No rights – check privilege separation"))
         if account.active:
             parts.append(_("Active"))
-        row.set_subtitle(" · ".join(parts))
+        lines = [" · ".join(parts)]
+        if expiry_text:
+            lines.append(expiry_text)
+        row.set_subtitle("\n".join(line for line in lines if line))
+        self.show_expiry_warning(row, account, expiry, expiry_text)
 
     # --- actions -----------------------------------------------------------
 
