@@ -337,6 +337,10 @@ class Window(Adw.ApplicationWindow):
             parts.append(repository)
         if profile.has_rights is False:
             parts.append(_("No rights – check privilege separation"))
+        elif profile.privsep is True:
+            parts.append(_("Own rights"))
+        elif profile.privsep is False:
+            parts.append(_("Rights of {user}").format(user=account.user))
         if account.active:
             parts.append(_("Active"))
         lines = [" · ".join(parts)]

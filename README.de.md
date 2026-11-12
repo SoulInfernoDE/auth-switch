@@ -25,7 +25,9 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
 - Findet beim Hinzufügen eines Kontos Proxmox-VE-Server in deinen lokalen Netzen
 - Zeigt pro Konto, ob das Token noch funktioniert, die Proxmox-VE-Version und
   wie lange das Token gültig ist – sein eigenes Ablaufdatum oder das seines
-  Benutzers, je nachdem, was früher kommt – mit einer Warnung zwei Wochen vorher
+  Benutzers, je nachdem, was früher kommt – mit einer Warnung zwei Wochen
+  vorher, und ob das Token eigene Rechte hat (Privilege Separation) oder die
+  seines Benutzers
 - Server mit selbstsigniertem Zertifikat – bei Proxmox VE der Standard – werden
   auf den Fingerabdruck festgelegt, den du einmal bestätigt hast
 - Per Schalter festlegen, was ein Token darf – Gäste lesen, benutzen oder
@@ -59,14 +61,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.4.8_all.deb
+sudo apt install ./auth-switch_0.4.9_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.8-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.9-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -312,7 +314,7 @@ wieder entfernt. Tools:
 
 | Tool | Zweck |
 | --- | --- |
-| `list_proxmox_accounts` | Konten pro Server, das aktive, Token-Gültigkeit und Ablaufdatum, Version |
+| `list_proxmox_accounts` | Konten pro Server, das aktive, Token-Gültigkeit, Ablaufdatum und Privilege Separation, Version |
 | `switch_proxmox_account` | Ein anderes Token aktivieren |
 | `proxmox_api_get` | Aus der API lesen: Knoten, Gäste, Speicher, Tasks … |
 | `proxmox_api_write` | Etwas ändern: Gäste starten/stoppen, Snapshots, Konfiguration … |

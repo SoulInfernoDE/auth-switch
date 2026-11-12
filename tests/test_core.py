@@ -53,6 +53,15 @@ class AccountTest(unittest.TestCase):
                 core.add_account("pve.example.com", "ops@pve!ci", "bad")
         self.assertNotIn("bad", self.keyring.values())
 
+    def test_new_secret_keeps_the_active_account(self):
+        other = core.add_account("pve.example.com:8006", "ops@pve!ci", "first")
+        self.assertTrue(other.active)
+        core.switch_account(TOKEN, "pve.example.com:8006")
+        again = core.add_account("pve.example.com:8006", "ops@pve!ci", "second")
+        self.assertFalse(again.active)
+        self.assertEqual([a.token_id for a in core.list_accounts() if a.active], [TOKEN])
+        self.assertEqual(self.keyring[("pve.example.com:8006", "ops@pve!ci")], "second")
+
     def test_last_known_expiry_explains_a_rejected_token(self):
         with mock.patch.object(core, "validate", return_value=core.Profile(valid=True, expires=1_700_000_000)):
             core.fetch_profile(self.account)
@@ -441,6 +450,14 @@ class InputTest(unittest.TestCase):
 
         with mock.patch.object(core, "request", side_effect=refuse):
             self.assertIsNone(core.validate("pve.example.com:8006", TOKEN, SECRET).expires)
+
+    def test_privilege_separation_is_read_with_the_token(self):
+        user, name = TOKEN.split("!")
+        answers = {"/version": {"version": "8.2.4"}, "/access/permissions": {"/": {}}, f"/access/users/{user}": {"expire": 0}}
+        for privsep, expected in (("1", True), (0, False), (None, None)):
+            answers[f"/access/users/{user}/token/{name}"] = {"privsep": privsep, "expire": 0}
+            with mock.patch.object(core, "request", side_effect=lambda h, t, s, m, path, *a, **k: answers.get(path)):
+                self.assertEqual(core.validate("pve.example.com:8006", TOKEN, SECRET).privsep, expected)
 
     def test_expiry_info(self):
         # Local noon, so whole days never cross midnight and the result does not depend on the time zone.

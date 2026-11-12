@@ -65,6 +65,8 @@ class Profile:
     has_rights: bool | None = None
     # Unix time at which the token stops working, 0 if it never expires, None if unknown.
     expires: int | None = None
+    # True if the token has only the rights granted to itself (privilege separation), False if it has its user's.
+    privsep: bool | None = None
 
 
 # --- files ------------------------------------------------------------------
@@ -357,17 +359,25 @@ def request(
         return text
 
 
-def _expiry(host: str, token_id: str, secret: str, fingerprint: str | None = None) -> int | None:
-    """When the token stops working: the earlier of its own expiry and its user's, 0 if neither expires."""
+def _token_details(host: str, token_id: str, secret: str, fingerprint: str | None = None) -> tuple[int | None, bool | None]:
+    """Expiry and privilege separation of a token, read with the token itself.
+
+    The expiry is the earlier of the token's own and its user's, since a token stops working with its user;
+    0 if neither expires. Each value is None if the server did not tell.
+    """
     user = token_id.split("!", 1)[0]
-    dates = []
-    for path in (_token_path(token_id), f"/access/users/{urllib.parse.quote(user, safe='@')}"):
-        try:
-            data = request(host, token_id, secret, "GET", path, fingerprint=fingerprint)
-            dates.append(int((data or {}).get("expire") or 0))
-        except (AuthError, AttributeError, TypeError, ValueError):
-            return None
-    return min((date for date in dates if date > 0), default=0)
+    try:
+        token = request(host, token_id, secret, "GET", _token_path(token_id), fingerprint=fingerprint) or {}
+        privsep = bool(int(token["privsep"])) if token.get("privsep") is not None else None
+        own = int(token.get("expire") or 0)
+    except (AuthError, AttributeError, TypeError, ValueError):
+        return None, None
+    try:
+        account = request(host, token_id, secret, "GET", f"/access/users/{urllib.parse.quote(user, safe='@')}", fingerprint=fingerprint)
+        dates = [own, int((account or {}).get("expire") or 0)]
+    except (AuthError, AttributeError, TypeError, ValueError):
+        return None, privsep
+    return min((date for date in dates if date > 0), default=0), privsep
 
 
 def validate(host: str, token_id: str, secret: str, fingerprint: str | None = None) -> Profile:
@@ -382,8 +392,8 @@ def validate(host: str, token_id: str, secret: str, fingerprint: str | None = No
         rights = bool(request(host, token_id, secret, "GET", "/access/permissions", fingerprint=fingerprint))
     except AuthError:
         rights = None
-    expires = _expiry(host, token_id, secret, fingerprint)
-    return Profile(valid=True, version=str(version), has_rights=rights, expires=expires)
+    expires, privsep = _token_details(host, token_id, secret, fingerprint)
+    return Profile(valid=True, version=str(version), has_rights=rights, expires=expires, privsep=privsep)
 
 
 def stored_expiry(host: str, token_id: str) -> int | None:
@@ -450,12 +460,15 @@ def add_account(host: str, token_id: str, secret: str, fingerprint: str = "") ->
     hosts = _load()
     entry = hosts.setdefault(host, {"tokens": [], "active": "", "fingerprint": "", "repository": "", "blocked": {}})
     if token_id not in entry["tokens"]:
+        # A new token becomes active; a new secret for a known one leaves the active account as it is.
         entry["tokens"].append(token_id)
-    entry["active"], entry["fingerprint"] = token_id, fingerprint
+        entry["active"] = token_id
+    entry["active"] = entry["active"] or token_id
+    entry["fingerprint"] = fingerprint
     if profile.expires is not None:
         entry.setdefault("expires", {})[token_id] = profile.expires
     _write_private(accounts_file(), hosts)
-    return Account(host, token_id, True)
+    return Account(host, token_id, entry["active"] == token_id)
 
 
 def _on_host(account: Account, host: str | None) -> bool:
@@ -1119,6 +1132,7 @@ def describe_accounts(check: bool = True) -> list[dict]:
             entry.update(
                 token_valid=profile.valid,
                 version=profile.version,
+                privilege_separated=profile.privsep,
                 expiry=expiry["state"],
                 expires=expiry["date"],
                 expires_in_days=expiry["days"],

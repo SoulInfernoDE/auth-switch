@@ -21,7 +21,8 @@ TOOLS = [
         "name": "list_proxmox_accounts",
         "description": _(
             "List the Proxmox VE accounts (API tokens) Auth-Switch manages, per server, including which one is "
-            "active, whether the token still works, when it expires and the Proxmox VE version. "
+            "active, whether the token still works, when it expires, whether it has its own rights (privilege "
+            "separation) or those of its user, and the Proxmox VE version. "
             "Secrets are never returned."
         ),
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},

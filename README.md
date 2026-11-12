@@ -24,7 +24,8 @@ Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch)
 - Finds Proxmox VE servers in your local networks when you add an account
 - Shows per account whether the token still works, the Proxmox VE version and
   how long the token stays valid – its own expiry date or that of its user,
-  whichever comes first – with a warning two weeks ahead
+  whichever comes first – with a warning two weeks ahead, and whether the
+  token has its own rights (privilege separation) or those of its user
 - Servers with a self-signed certificate – the Proxmox VE default – are pinned
   to the fingerprint you confirmed once
 - Adjust what a token may do with switches – read, use or manage guests, manage
@@ -57,14 +58,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.4.8_all.deb
+sudo apt install ./auth-switch_0.4.9_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.8-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.9-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -288,7 +289,7 @@ switch that registers the server in both and removes it again. Tools:
 
 | Tool | Purpose |
 | --- | --- |
-| `list_proxmox_accounts` | Accounts per server, the active one, token validity and expiry date, version |
+| `list_proxmox_accounts` | Accounts per server, the active one, token validity, expiry date and privilege separation, version |
 | `switch_proxmox_account` | Activate another token |
 | `proxmox_api_get` | Read from the API: nodes, guests, storage, tasks … |
 | `proxmox_api_write` | Change things: start/stop guests, snapshots, configuration … |
