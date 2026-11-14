@@ -41,24 +41,28 @@ msgid "check what the next push of this working copy would publish"
 msgstr "prüfen, was der nächste Push dieser Arbeitskopie veröffentlichen würde"
 
 #: authswitch/__main__.py:29
+msgid "where the files will be published (host or URL)"
+msgstr "wo die Dateien veröffentlicht werden (Host oder URL)"
+
+#: authswitch/__main__.py:30
 msgid "run the MCP server on stdio"
 msgstr "MCP-Server über stdio starten"
 
-#: authswitch/__main__.py:40
+#: authswitch/__main__.py:41
 msgid "exec needs a command, for example: auth-switch exec -- terraform plan"
 msgstr ""
 "exec braucht einen Befehl, zum Beispiel: auth-switch exec -- terraform plan"
 
-#: authswitch/__main__.py:50
+#: authswitch/__main__.py:51
 #, python-brace-format
 msgid "auth-switch: {error}"
 msgstr "auth-switch: {error}"
 
-#: authswitch/__main__.py:68
+#: authswitch/__main__.py:70
 msgid "No private data found."
 msgstr "Keine privaten Daten gefunden."
 
-#: authswitch/__main__.py:68
+#: authswitch/__main__.py:70
 #, python-brace-format
 msgid "{count} finding(s)."
 msgstr "{count} Fund(e)."
@@ -108,7 +112,7 @@ msgstr ""
 "Endpunkte, die Tickets oder Zugangsdaten ausstellen, stehen hier nicht zur "
 "Verfügung."
 
-#: authswitch/core.py:328 authswitch/mcp.py:195
+#: authswitch/core.py:328 authswitch/mcp.py:208
 #, python-brace-format
 msgid "Unsupported method: {method}"
 msgstr "Nicht unterstützte Methode: {method}"
@@ -1894,78 +1898,83 @@ msgstr "Auth-Switch {version} ist installiert; neu starten, um es zu nutzen"
 msgid "Auth-Switch {version} is available"
 msgstr "Auth-Switch {version} ist verfügbar"
 
-#: authswitch/leaks.py:133
+#: authswitch/leaks.py:190
 #, python-brace-format
 msgid "The token currently stored for {account}."
 msgstr "Das aktuell für {account} gespeicherte Token."
 
-#: authswitch/leaks.py:137
+#: authswitch/leaks.py:194
 msgid "Looks like an access token."
 msgstr "Sieht aus wie ein Zugriffstoken."
 
-#: authswitch/leaks.py:139
+#: authswitch/leaks.py:196
 msgid "A private key."
 msgstr "Ein privater Schlüssel."
 
-#: authswitch/leaks.py:143
+#: authswitch/leaks.py:202
+#, python-brace-format
+msgid "A reference to your Forgejo server {host}. It may only appear in content for your Forgejo servers, never on GitHub, GitLab or elsewhere."
+msgstr "Ein Hinweis auf deinen Forgejo-Server {host}. Er darf nur in Inhalten für deine Forgejo-Server stehen, nie auf GitHub, GitLab oder anderswo."
+
+#: authswitch/leaks.py:207
 #, python-brace-format
 msgid "Address of your Proxmox VE server {host}."
 msgstr "Adresse deines Proxmox-VE-Servers {host}."
 
-#: authswitch/leaks.py:147
+#: authswitch/leaks.py:211
 msgid "Your real git e-mail address."
 msgstr "Deine echte Git-E-Mail-Adresse."
 
-#: authswitch/leaks.py:149
+#: authswitch/leaks.py:213
 msgid "An e-mail address; check that it is meant to be public."
 msgstr "Eine E-Mail-Adresse; bitte prüfen, ob sie öffentlich sein soll."
 
-#: authswitch/leaks.py:151
+#: authswitch/leaks.py:215
 msgid "A path inside your home directory; it reveals your user name."
 msgstr "Ein Pfad in deinem Home-Verzeichnis; er verrät deinen Benutzernamen."
 
-#: authswitch/leaks.py:153
+#: authswitch/leaks.py:217
 msgid "The name of this computer."
 msgstr "Der Name dieses Rechners."
 
-#: authswitch/leaks.py:160
+#: authswitch/leaks.py:224
 msgid "An address from a private network."
 msgstr "Eine Adresse aus einem privaten Netz."
 
-#: authswitch/leaks.py:162
+#: authswitch/leaks.py:226
 msgid "A host name from an internal network."
 msgstr "Ein Hostname aus einem internen Netz."
 
-#: authswitch/leaks.py:166
+#: authswitch/leaks.py:230
 #, python-brace-format
 msgid "An attribution line naming {term}."
 msgstr "Eine Mitautor-Zeile, die {term} nennt."
 
-#: authswitch/leaks.py:168
+#: authswitch/leaks.py:232
 #, python-brace-format
 msgid "A mention of {term}."
 msgstr "Eine Erwähnung von {term}."
 
-#: authswitch/leaks.py:176
+#: authswitch/leaks.py:248
 #, python-brace-format
 msgid "This belongs only in {repository}."
 msgstr "Das gehört nur nach {repository}."
 
-#: authswitch/leaks.py:177
+#: authswitch/leaks.py:249
 msgid "This is not meant to be published."
 msgstr "Das soll nicht veröffentlicht werden."
 
-#: authswitch/leaks.py:184
+#: authswitch/leaks.py:256
 #, python-brace-format
 msgid "A file on your restricted list ({term})."
 msgstr "Eine Datei von deiner Sperrliste ({term})."
 
-#: authswitch/leaks.py:202
+#: authswitch/leaks.py:274
 #, python-brace-format
 msgid "{path} does not exist."
 msgstr "{path} existiert nicht."
 
-#: authswitch/leaks.py:251
+#: authswitch/leaks.py:323
 #, python-brace-format
 msgid "{path} is not a git repository."
 msgstr "{path} ist kein Git-Repository."
@@ -2045,43 +2054,29 @@ msgid "Parameters of the call"
 msgstr "Parameter des Aufrufs"
 
 #: authswitch/mcp.py:91
-msgid ""
-"Check content for private data before it is published: secrets of the "
-"Proxmox VE accounts, other access tokens and private keys, addresses of the "
-"user's Proxmox servers, the real git e-mail address, paths in the home "
-"directory, the computer name and internal network addresses. Call it before "
-"committing, pushing, creating a release, opening an issue or pull request, "
-"or putting text into a README. Pass 'repository' to check what the next push "
-"would publish, 'paths' for files or folders, or 'text' for a draft. Findings "
-"of severity 'secret' must be removed; discuss 'private' and 'review' "
-"findings with the user instead of publishing them."
-msgstr ""
-"Prüft Inhalte vor der Veröffentlichung auf private Daten: Geheimnisse der "
-"Proxmox-VE-Konten, andere Zugriffstokens und private Schlüssel, Adressen der "
-"Proxmox-Server des Nutzers, die echte Git-E-Mail-Adresse, Pfade im Home-"
-"Verzeichnis, den Rechnernamen und interne Netzwerkadressen. Vor jedem "
-"Commit, Push, Release, Issue oder Pull Request und vor Text für ein README "
-"aufrufen. 'repository' prüft, was der nächste Push veröffentlichen würde, "
-"'paths' Dateien oder Ordner, 'text' einen Entwurf. Funde der Stufe 'secret' "
-"müssen entfernt werden; Funde der Stufen 'private' und 'review' mit dem "
-"Nutzer besprechen, statt sie zu veröffentlichen."
+msgid "Check content for private data before it is published: secrets of the Proxmox VE accounts, other access tokens and private keys, addresses of the user's Proxmox servers, the real git e-mail address, paths in the home directory, the computer name and internal network addresses. Call it before committing, pushing, creating a release, opening an issue or pull request, or putting text into a README. Pass 'repository' to check what the next push would publish, 'paths' for files or folders, or 'text' for a draft. Findings of severity 'secret' must be removed; discuss 'private' and 'review' findings with the user instead of publishing them. References to the user's Forgejo servers are allowed only in content for those servers: pass 'destination' (host or URL) when checking text or files for a Forgejo server."
+msgstr "Prüft Inhalte vor der Veröffentlichung auf private Daten: Geheimnisse der Proxmox-VE-Konten, andere Zugriffstokens und private Schlüssel, Adressen der Proxmox-Server des Nutzers, die echte Git-E-Mail-Adresse, Pfade im Home-Verzeichnis, den Rechnernamen und interne Netzwerkadressen. Vor jedem Commit, Push, Release, Issue oder Pull Request und vor Text für ein README aufrufen. 'repository' prüft, was der nächste Push veröffentlichen würde, 'paths' Dateien oder Ordner, 'text' einen Entwurf. Funde der Stufe 'secret' müssen entfernt werden; Funde der Stufen 'private' und 'review' mit dem Nutzer besprechen, statt sie zu veröffentlichen. Hinweise auf die Forgejo-Server des Nutzers sind nur in Inhalten für diese Server erlaubt: Beim Prüfen von Text oder Dateien für einen Forgejo-Server 'destination' (Host oder URL) angeben."
 
-#: authswitch/mcp.py:102
+#: authswitch/mcp.py:104
 msgid "Text to check, for example a draft README or message"
 msgstr "Zu prüfender Text, zum Beispiel ein README-Entwurf oder eine Nachricht"
 
-#: authswitch/mcp.py:103
+#: authswitch/mcp.py:105
 msgid "Files or folders to check"
 msgstr "Zu prüfende Dateien oder Ordner"
 
-#: authswitch/mcp.py:106
+#: authswitch/mcp.py:108
 msgid ""
 "Git working copy; checks staged changes and commits not yet on the upstream"
 msgstr ""
 "Git-Arbeitskopie; prüft vorgemerkte Änderungen und Commits, die dem Upstream "
 "noch fehlen"
 
-#: authswitch/mcp.py:122
+#: authswitch/mcp.py:112
+msgid "Where 'text' or 'paths' will be published (host or URL); a repository uses its push target"
+msgstr "Wo 'text' oder 'paths' veröffentlicht werden (Host oder URL); ein Repository nutzt sein Push-Ziel"
+
+#: authswitch/mcp.py:128
 msgid ""
 "Before publishing anything on the user's behalf (commit, push, release, "
 "issue, pull request, README), run check_for_leaks on it and resolve the "
@@ -2091,7 +2086,12 @@ msgstr ""
 "Issue, Pull Request, README), check_for_leaks darauf ausführen und die Funde "
 "mit dem Nutzer klären."
 
-#: authswitch/mcp.py:129
+#: authswitch/mcp.py:134
+#, python-brace-format
+msgid "Never refer to the Forgejo servers {servers} (host names, addresses, links, clone URLs) outside Forgejo: not on GitHub, GitLab or any other site, and not in content that will be published there."
+msgstr "Die Forgejo-Server {servers} (Hostnamen, Adressen, Links, Clone-URLs) nie außerhalb von Forgejo erwähnen: nicht auf GitHub, GitLab oder anderen Seiten und nicht in Inhalten, die dort veröffentlicht werden."
+
+#: authswitch/mcp.py:141
 #, python-brace-format
 msgid ""
 "Do not mention {terms} in anything you publish, and add no Co-Authored-By or "
@@ -2100,12 +2100,12 @@ msgstr ""
 "{terms} in nichts erwähnen, was veröffentlicht wird, und keine Co-Authored-"
 "By- oder „Generated with“-Zeilen hinzufügen, die sie nennen."
 
-#: authswitch/mcp.py:133
+#: authswitch/mcp.py:145
 #, python-brace-format
 msgid "Such notes belong only in the repository {repository}."
 msgstr "Solche Hinweise gehören nur in das Repository {repository}."
 
-#: authswitch/mcp.py:142
+#: authswitch/mcp.py:154
 #, python-brace-format
 msgid ""
 "Auth-Switch was updated to {version}; restart the client so this MCP server "
@@ -2114,52 +2114,52 @@ msgstr ""
 "Auth-Switch wurde auf {version} aktualisiert; den Client neu starten, damit "
 "dieser MCP-Server die neue Version ausführt."
 
-#: authswitch/mcp.py:146
+#: authswitch/mcp.py:158
 #, python-brace-format
 msgid "Auth-Switch {version} is available: {url}"
 msgstr "Auth-Switch {version} ist verfügbar: {url}"
 
-#: authswitch/mcp.py:156
+#: authswitch/mcp.py:168
 #, python-brace-format
 msgid "The token {token} on {host} expired on {date}."
 msgstr "Das Token {token} auf {host} ist am {date} abgelaufen."
 
-#: authswitch/mcp.py:159
+#: authswitch/mcp.py:171
 #, python-brace-format
 msgid "The token {token} on {host} expires on {date}, in {days} day."
 msgid_plural "The token {token} on {host} expires on {date}, in {days} days."
 msgstr[0] "Das Token {token} auf {host} läuft am {date} ab, in {days} Tag."
 msgstr[1] "Das Token {token} auf {host} läuft am {date} ab, in {days} Tagen."
 
-#: authswitch/mcp.py:172
+#: authswitch/mcp.py:185
 #, python-brace-format
 msgid "Not sent: the request contains a secret ({detail})"
 msgstr "Nicht gesendet: Die Anfrage enthält ein Geheimnis ({detail})"
 
-#: authswitch/mcp.py:188
+#: authswitch/mcp.py:201
 msgid "'token_id' is required"
 msgstr "'token_id' ist erforderlich"
 
-#: authswitch/mcp.py:207
+#: authswitch/mcp.py:222
 #, python-brace-format
 msgid "Unknown tool: {name}"
 msgstr "Unbekanntes Tool: {name}"
 
-#: authswitch/mcp.py:242
+#: authswitch/mcp.py:257
 #, python-brace-format
 msgid "Internal error: {detail}"
 msgstr "Interner Fehler: {detail}"
 
-#: authswitch/mcp.py:245
+#: authswitch/mcp.py:260
 msgid "[Result cut off; narrow the request.]"
 msgstr "[Ergebnis abgeschnitten; Anfrage eingrenzen.]"
 
-#: authswitch/mcp.py:247
+#: authswitch/mcp.py:262
 #, python-brace-format
 msgid "Method not found: {method}"
 msgstr "Methode nicht gefunden: {method}"
 
-#: authswitch/mcp.py:261
+#: authswitch/mcp.py:276
 msgid "Parse error"
 msgstr "Syntaxfehler"
 

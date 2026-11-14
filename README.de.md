@@ -61,14 +61,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.4.9_all.deb
+sudo apt install ./auth-switch_0.4.10_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.9-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.10-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -329,9 +329,17 @@ was der Assistent tun kann.
 
 | Stufe | Was gefunden wird |
 | --- | --- |
-| `secret` | Die Geheimnisse deiner Tokens, andere Zugriffstokens, private Schlüssel |
+| `secret` | Die Geheimnisse deiner Tokens, andere Zugriffstokens, private Schlüssel, Hinweise auf deine Forgejo-Server außerhalb von Forgejo |
 | `private` | Adressen deiner Proxmox-VE-Server, deine echte Git-E-Mail-Adresse, Pfade in deinem Home-Verzeichnis |
 | `review` | Andere E-Mail-Adressen, der Rechnername, private Netzwerkadressen, interne Hostnamen |
+
+Deine Forgejo-Server bleiben in Forgejo: Ihre Hostnamen und Adressen dürfen
+nur in Inhalten für einen von ihnen stehen, nie auf GitHub, GitLab oder
+anderswo, egal was in `leak_allow` steht. Auth-Switch liest sie aus
+`forgejo_hosts` in seiner Konfiguration und aus den Forgejo-Konten von
+Git-Switch, falls installiert. Eine Arbeitskopie, deren Push-Ziel einer von
+ihnen ist, darf sie nennen; für Text oder Dateien gibst du das Ziel mit
+`--destination` an (oder `destination` bei `check_for_leaks`).
 
 `auth-switch leak-check` endet bei Funden mit Status 1 und eignet sich damit
 als git-`pre-push`-Hook. Einträge unter `leak_allow` in

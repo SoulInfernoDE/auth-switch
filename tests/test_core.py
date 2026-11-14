@@ -1025,6 +1025,30 @@ class LeakTest(unittest.TestCase):
     def kinds(self, text):
         return [finding.kind for finding in leaks.scan_text(text, "t", self.context)]
 
+    def forgejo(self):
+        self.context.forgejo = {"forge.example.net": "forge.example.net", "2001:db8::7": "forge.example.net"}
+
+    def test_forgejo_server_only_for_forgejo(self):
+        self.forgejo()
+        self.context.allow = ["forge.example.net"]
+        for text in ("clone https://forge.example.net/dana/x.git", "http://[2001:db8::7]:3000/"):
+            self.assertIn("forgejo-server", self.kinds(text), text)
+        for text in ("forge.example.network", "sub.forge.example.netty", "2001:db8::77"):
+            self.assertNotIn("forgejo-server", self.kinds(text), text)
+        self.assertTrue(leaks.is_forgejo_target("git@forge.example.net:dana/x.git", self.context))
+        self.assertFalse(leaks.is_forgejo_target("https://github.com/dana/x", self.context))
+        self.context.forgejo_target = True
+        self.assertEqual(self.kinds("https://forge.example.net/dana/x"), [])
+
+    def test_forgejo_hosts_from_settings_and_git_switch(self):
+        with tempfile.TemporaryDirectory() as base:
+            Path(base, "gitswitch").mkdir()
+            Path(base, "gitswitch", "forges.json").write_text(
+                '{"forge.example.net": {"kind": "forgejo"}, "gitlab.example.net": {"kind": "gitlab"}}')
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": base}):
+                hosts = leaks._forgejo_hosts({"forgejo_hosts": ["Code.Example.Org"]})
+        self.assertEqual(hosts, {"forge.example.net", "code.example.org"})
+
     def test_repository_with_text_that_is_not_utf8(self):
         with tempfile.TemporaryDirectory() as folder:
             git = ["git", "-C", folder, "-c", "user.name=t", "-c", "user.email=t@example.com"]

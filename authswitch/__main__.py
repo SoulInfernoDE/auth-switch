@@ -26,6 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     check = commands.add_parser("leak-check", help=_("check files or a git working copy for private data"))
     check.add_argument("paths", nargs="*")
     check.add_argument("--repository", help=_("check what the next push of this working copy would publish"))
+    check.add_argument("--destination", help=_("where the files will be published (host or URL)"))
     commands.add_parser("mcp", help=_("run the MCP server on stdio"))
     args = parser.parse_args(argv)
 
@@ -59,6 +60,7 @@ def _leak_check(args) -> int:
     from . import leaks
 
     context = leaks.gather()
+    context.forgejo_target = bool(args.destination) and leaks.is_forgejo_target(args.destination, context)
     found = leaks.scan_paths(args.paths, context)
     if args.repository or not args.paths:
         found += leaks.scan_repository(args.repository or ".", context)

@@ -3,11 +3,18 @@
 Unlike a generic secret scanner this knows what is private on this machine:
 the secrets of the Proxmox VE accounts, the servers they belong to, the real
 git e-mail address, the home directory and the machine name.
+
+The user's Forgejo servers are stricter: their names and addresses may appear
+only in content that goes to one of them, never on GitHub, GitLab or anywhere
+else. They come from the setting "forgejo_hosts" and from Git-Switch's
+Forgejo accounts, if Git-Switch is set up.
 """
 
 from __future__ import annotations
 
 import ipaddress
+import json
+import os
 import re
 import socket
 import subprocess
@@ -60,6 +67,10 @@ class Context:
     # Phrases in which a term is fine, e.g. the name of a product the code integrates with.
     restricted_phrases: list[str] = field(default_factory=list)
 
+    # The user's Forgejo servers: host name or address (lower case) -> server; allowed only where they are the target.
+    forgejo: dict[str, str] = field(default_factory=dict)
+    forgejo_target: bool = False
+
     @property
     def restricting(self) -> bool:
         return self.restricted_terms is not None or bool(self.restricted_files)
@@ -95,11 +106,57 @@ def _restricted_settings(context: "Context", settings: dict) -> None:
         context.restricted_label = str(rules["repository"])
 
 
+def _host_name(host: str) -> str:
+    """Host name of ``host``, ``host:port`` or ``[v6]:port``, in lower case."""
+    text = host.strip().lower()
+    if text.startswith("["):
+        return text[1:].split("]", 1)[0]
+    return text.rsplit(":", 1)[0] if text.count(":") == 1 else text
+
+
+def forgejo_names(hosts: set[str]) -> dict[str, str]:
+    """Every name and address under which the given Forgejo servers can be reached."""
+    names: dict[str, str] = {}
+    for host in sorted(hosts):
+        name = _host_name(host)
+        if not name:
+            continue
+        names[name] = name
+        try:
+            for *_, address in socket.getaddrinfo(name, None):
+                names.setdefault(str(address[0]).lower(), name)
+        except (OSError, UnicodeError):
+            pass
+    return names
+
+
+def _forgejo_hosts(settings: dict) -> set[str]:
+    hosts = {str(host).lower() for host in settings.get("forgejo_hosts") or [] if str(host).strip()}
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    try:
+        forges = json.loads((Path(base) / "gitswitch" / "forges.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        forges = {}
+    if isinstance(forges, dict):
+        hosts |= {str(host).lower() for host, entry in forges.items()
+                  if isinstance(entry, dict) and entry.get("kind", "forgejo") == "forgejo"}
+    return hosts
+
+
+def is_forgejo_target(location: str, context: "Context | None" = None) -> bool:
+    """Whether ``location`` (a host, URL, remote or ``host/owner/name``) is one of the user's Forgejo servers."""
+    context = context or gather()
+    if not location.strip():
+        return False
+    return _host_name(repository_id(location).split("/", 1)[0]) in set(context.forgejo.values())
+
+
 def gather() -> Context:
     context = Context(home=str(Path.home()), machine=socket.gethostname())
     settings = core.load_settings()
     context.allow = [str(entry) for entry in settings.get("leak_allow") or []]
     _restricted_settings(context, settings)
+    context.forgejo = forgejo_names(_forgejo_hosts(settings))
     for account in core.list_accounts():
         try:
             secret = core.lookup_secret(account.host, account.token_id)
@@ -138,8 +195,15 @@ def scan_line(line: str, where: str, context: Context) -> list[Finding]:
     if _PRIVATE_KEY.search(line):
         add("private-key", SECRET, line, _("A private key."))
     lowered = line.lower()
+    forgejo_hit = _forgejo_mention(lowered, context)
+    if forgejo_hit and not context.forgejo_target:
+        # Never subject to the allow list: these servers stay inside Forgejo.
+        found.append(Finding("forgejo-server", SECRET, where, shown[:200], _(
+            "A reference to your Forgejo server {host}. It may only appear in content for your Forgejo servers, "
+            "never on GitHub, GitLab or elsewhere."
+        ).format(host=forgejo_hit)))
     for host in context.hosts:
-        if host in lowered:
+        if host in lowered and host not in context.forgejo.values():
             add("private-server", PRIVATE, host, _("Address of your Proxmox VE server {host}.").format(host=host))
     for match in _EMAIL.finditer(line):
         address = match.group(0)
@@ -167,6 +231,14 @@ def scan_line(line: str, where: str, context: Context) -> list[Finding]:
         elif term and not any(phrase in line.lower() for phrase in context.restricted_phrases):
             add("restricted-term", PRIVATE, term.group(0), _restricted_detail(context, _("A mention of {term}."), term.group(0)))
     return found
+
+
+def _forgejo_mention(lowered: str, context: Context) -> str:
+    """The Forgejo server a line refers to by name or address, or an empty string."""
+    for name, server in context.forgejo.items():
+        if name in lowered and re.search(rf"(?<![\w.:-]){re.escape(name)}(?![\w-]|\.\w|:[0-9a-f]*:)", lowered):
+            return server
+    return ""
 
 
 def _restricted_detail(context: Context, what: str, term: str = "") -> str:
@@ -250,8 +322,11 @@ def scan_repository(repository: str, context: Context | None = None) -> list[Fin
     if top.returncode != 0:
         raise core.AuthError(_("{path} is not a git repository.").format(path=repository))
     root = top.stdout.strip()
-    if context.restricted_repository and _push_target(root) == context.restricted_repository:
+    target = _push_target(root)
+    if context.restricted_repository and target == context.restricted_repository:
         context = replace(context, restricted_terms=None, restricted_files=set())
+    if target and is_forgejo_target(target, context):
+        context = replace(context, forgejo_target=True)
     found = _scan_diff(_git(root, "diff", "--cached", "-U0").stdout, context)
     if _git(root, "rev-parse", "--abbrev-ref", "@{upstream}").returncode == 0:
         commits = "@{upstream}..HEAD"
