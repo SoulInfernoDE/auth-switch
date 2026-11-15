@@ -62,8 +62,8 @@ FOUND = {core.PROXMOX: PROXMOX, core.SYNOLOGY: SYNOLOGY_FOUND}
 PORTS = {core.PROXMOX: core.DEFAULT_PORT, core.SYNOLOGY: 5001}
 
 
-def _ask(address: str, port: int, timeout: float) -> tuple[str, str | None]:
-    """Fetch the start page: Proxmox VE with its node name, another web server, or no answer."""
+def _fetch(address: str, port: int, path: str, timeout: float, until: bytes | None = None) -> bytes | None:
+    """GET ``path`` over HTTPS without checking the certificate; the raw answer, or None without one."""
     context = ssl.create_default_context()
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
@@ -78,22 +78,44 @@ def _ask(address: str, port: int, timeout: float) -> tuple[str, str | None]:
             with context.wrap_socket(sock, server_hostname=server_name) as tls:
                 tls.settimeout(timeout * 3)
                 host = address if port == 443 else f"{address}:{port}"
-                tls.sendall(f"GET / HTTP/1.0\r\nHost: {host}\r\nUser-Agent: {core.APP}\r\n\r\n".encode())
+                tls.sendall(f"GET {path} HTTP/1.0\r\nHost: {host}\r\nUser-Agent: {core.APP}\r\n\r\n".encode())
                 page = b""
-                while len(page) < 65536 and b"</title>" not in page.lower():
+                while len(page) < 65536 and not (until and until in page.lower()):
                     chunk = tls.recv(8192)
                     if not chunk:
                         break
                     page += chunk
     except (OSError, ValueError):
+        return None
+    return page
+
+
+# Asked without signing in; only DSM answers it with its sign-in API.
+_DSM_API = "/webapi/query.cgi?api=SYNO.API.Info&version=1&method=query&query=SYNO.API.Auth"
+_ANY_TITLE = re.compile(rb"<title>\s*(.*?)\s*</title>", re.IGNORECASE | re.DOTALL)
+
+
+def _ask(address: str, port: int, timeout: float) -> tuple[str, str | None]:
+    """Fetch the start page: Proxmox VE with its node name, Synology DSM with its name, another web server, or no answer."""
+    page = _fetch(address, port, "/", timeout, until=b"</title>")
+    if page is None:
         return DOWN, None
     match = _TITLE.search(page)
     if match:
         return PROXMOX, match.group(1).decode("utf-8", "replace")
-    match = _DSM_TITLE.search(page.replace(b"&nbsp;", b" "))
+    page = page.replace(b"&nbsp;", b" ")
+    match = _DSM_TITLE.search(page)
     if match:
         return SYNOLOGY_FOUND, match.group(1).decode("utf-8", "replace")
-    return (OTHER, None) if page.startswith(b"HTTP/") else (DOWN, None)
+    if not page.startswith(b"HTTP/"):
+        return DOWN, None
+    # The title of the DSM sign-in page can be changed (Control Panel → Login Portal); the API cannot.
+    answer = _fetch(address, port, _DSM_API, timeout) or b""
+    if b'"SYNO.API.Auth"' in answer and b'"success":true' in answer.replace(b" ", b""):
+        title = _ANY_TITLE.search(page)
+        name = title.group(1).decode("utf-8", "replace").strip() if title else ""
+        return SYNOLOGY_FOUND, name or address
+    return OTHER, None
 
 
 def check(text: str, timeout: float = 2.0, kind: str = core.PROXMOX) -> dict:

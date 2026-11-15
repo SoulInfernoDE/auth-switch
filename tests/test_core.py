@@ -1111,6 +1111,15 @@ class SynologyTest(unittest.TestCase):
         proxmox = json.loads(call("list_proxmox_accounts", {})["content"][0]["text"])
         self.assertEqual(proxmox["accounts"], [])
 
+    def test_a_changed_sign_in_title_is_recognised_through_the_api(self):
+        pages = {"/": b"HTTP/1.1 200 OK\r\n\r\n<html><title>Our NAS</title></html>",
+                 discovery._DSM_API: b'HTTP/1.1 200 OK\r\n\r\n{"data":{"SYNO.API.Auth":{"maxVersion":7}},"success":true}'}
+        with mock.patch.object(discovery, "_fetch", side_effect=lambda address, port, path, timeout, until=None: pages[path]):
+            self.assertEqual(discovery._ask("nas", 5001, 1), (discovery.SYNOLOGY_FOUND, "Our NAS"))
+        pages[discovery._DSM_API] = b"HTTP/1.1 404 Not Found\r\n\r\n"
+        with mock.patch.object(discovery, "_fetch", side_effect=lambda address, port, path, timeout, until=None: pages[path]):
+            self.assertEqual(discovery._ask("web", 443, 1), (discovery.OTHER, None))
+
     def test_check_recognises_dsm(self):
         address, port = self.host.split(":")
         self.assertEqual(discovery.check(self.host, kind=core.SYNOLOGY)["state"], discovery.SYNOLOGY_FOUND)
