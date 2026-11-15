@@ -38,35 +38,51 @@ msgid "run a command with the active account in its environment"
 msgstr ""
 
 #: authswitch/__main__.py:26
-msgid "check files or a git working copy for private data"
+msgid ""
+"use the active Synology DSM account: the program gets a session of its own, "
+"signed out afterwards"
 msgstr ""
 
 #: authswitch/__main__.py:28
-msgid "check what the next push of this working copy would publish"
-msgstr ""
-
-#: authswitch/__main__.py:29
-msgid "where the files will be published (host or URL)"
+msgid ""
+"with --synology: also hand over the DSM password, for tools that sign in "
+"themselves"
 msgstr ""
 
 #: authswitch/__main__.py:30
+msgid "check files or a git working copy for private data"
+msgstr ""
+
+#: authswitch/__main__.py:32
+msgid "check what the next push of this working copy would publish"
+msgstr ""
+
+#: authswitch/__main__.py:33
+msgid "where the files will be published (host or URL)"
+msgstr ""
+
+#: authswitch/__main__.py:34
 msgid "run the MCP server on stdio"
 msgstr ""
 
-#: authswitch/__main__.py:41
+#: authswitch/__main__.py:45
 msgid "exec needs a command, for example: auth-switch exec -- terraform plan"
 msgstr ""
 
 #: authswitch/__main__.py:51
+msgid "--password goes only with --synology"
+msgstr ""
+
+#: authswitch/__main__.py:61
 #, python-brace-format
 msgid "auth-switch: {error}"
 msgstr ""
 
-#: authswitch/__main__.py:70
+#: authswitch/__main__.py:80
 msgid "No private data found."
 msgstr ""
 
-#: authswitch/__main__.py:70
+#: authswitch/__main__.py:80
 #, python-brace-format
 msgid "{count} finding(s)."
 msgstr ""
@@ -87,7 +103,7 @@ msgid "The secret could not be stored in the system keyring."
 msgstr ""
 
 #: authswitch/core.py:250 authswitch/core.py:264 authswitch/core.py:361
-#: authswitch/core.py:907 authswitch/rootshell.py:48 authswitch/synology.py:86
+#: authswitch/core.py:907 authswitch/rootshell.py:48 authswitch/synology.py:93
 #, python-brace-format
 msgid "{host} cannot be reached: {detail}"
 msgstr ""
@@ -107,12 +123,12 @@ msgstr ""
 msgid "Endpoints that issue tickets or credentials are not available here."
 msgstr ""
 
-#: authswitch/core.py:338 authswitch/mcp.py:272 authswitch/synology.py:193
+#: authswitch/core.py:338 authswitch/mcp.py:272 authswitch/synology.py:222
 #, python-brace-format
 msgid "Unsupported method: {method}"
 msgstr ""
 
-#: authswitch/core.py:358 authswitch/synology.py:83
+#: authswitch/core.py:358 authswitch/synology.py:90
 #, python-brace-format
 msgid ""
 "The certificate of {host} is not trusted; add the account again to confirm "
@@ -2260,96 +2276,96 @@ msgstr ""
 msgid "The key could not be removed from the server: {detail}"
 msgstr ""
 
-#: authswitch/synology.py:44
+#: authswitch/synology.py:49
 msgid "DSM rejected the user name or the password."
 msgstr ""
 
-#: authswitch/synology.py:45
+#: authswitch/synology.py:50
 msgid "The DSM account is disabled."
 msgstr ""
 
-#: authswitch/synology.py:46
+#: authswitch/synology.py:51
 msgid "The DSM account may not sign in here."
 msgstr ""
 
-#: authswitch/synology.py:47
+#: authswitch/synology.py:52
 msgid "DSM asks for the code of the second sign-in step."
 msgstr ""
 
-#: authswitch/synology.py:48
+#: authswitch/synology.py:53
 msgid "The code of the second sign-in step is wrong or was used already."
 msgstr ""
 
-#: authswitch/synology.py:49
+#: authswitch/synology.py:54
 msgid ""
 "DSM requires two-factor sign-in for this account; set it up in DSM first."
 msgstr ""
 
-#: authswitch/synology.py:50
+#: authswitch/synology.py:55
 msgid ""
 "DSM has blocked the address of this computer after too many failed sign-ins."
 msgstr ""
 
-#: authswitch/synology.py:51 authswitch/synology.py:52
+#: authswitch/synology.py:56 authswitch/synology.py:57
 msgid "The password of the DSM account has expired."
 msgstr ""
 
-#: authswitch/synology.py:53
+#: authswitch/synology.py:58
 msgid ""
 "DSM wants a new password for this account; sign in once in the web interface."
 msgstr ""
 
-#: authswitch/synology.py:54
+#: authswitch/synology.py:59
 msgid "DSM does not offer this API."
 msgstr ""
 
-#: authswitch/synology.py:55
+#: authswitch/synology.py:60
 msgid "DSM does not offer this method."
 msgstr ""
 
-#: authswitch/synology.py:56
+#: authswitch/synology.py:61
 msgid "DSM does not offer this API version."
 msgstr ""
 
-#: authswitch/synology.py:57
+#: authswitch/synology.py:62
 msgid "The DSM account has no permission for this."
 msgstr ""
 
-#: authswitch/synology.py:58 authswitch/synology.py:206
+#: authswitch/synology.py:63 authswitch/synology.py:235
 msgid "The DSM session has ended."
 msgstr ""
 
-#: authswitch/synology.py:63
+#: authswitch/synology.py:68
 #, python-brace-format
 msgid "DSM answered with error {code}."
 msgstr ""
 
-#: authswitch/synology.py:94 authswitch/synology.py:96
-#: authswitch/synology.py:165
+#: authswitch/synology.py:101 authswitch/synology.py:103
+#: authswitch/synology.py:194
 #, python-brace-format
 msgid "{host} did not answer like a Synology DSM server."
 msgstr ""
 
-#: authswitch/synology.py:160
+#: authswitch/synology.py:189
 msgid "Enter the user name of the DSM account."
 msgstr ""
 
-#: authswitch/synology.py:163
+#: authswitch/synology.py:192
 #, python-brace-format
 msgid "{host} rejected the account."
 msgstr ""
 
-#: authswitch/synology.py:189
+#: authswitch/synology.py:218
 msgid "The API name must look like SYNO.Core.System."
 msgstr ""
 
-#: authswitch/synology.py:191
+#: authswitch/synology.py:220
 msgid ""
 "APIs that hand out sessions, passwords or second factors are not available "
 "here."
 msgstr ""
 
-#: authswitch/synology.py:224
+#: authswitch/synology.py:253 authswitch/synology.py:303
 #, python-brace-format
 msgid ""
 "DSM asks for a code of the second sign-in step for {user}; add the account "

@@ -45,7 +45,8 @@ Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch)
 - Sets up SSH as root for your own terminal and switches it on and off
 - Changes the password of an account inside a VM or container, or renames it
   without leaving the old name behind
-- Runs other tools with the active account: `auth-switch exec -- terraform plan`
+- Runs other tools with the active account: `auth-switch exec -- terraform plan`;
+  with `--synology` a program gets a DSM session of its own instead of the password
 - MCP server with read and write access to the Proxmox VE API
 - Leak check: finds token secrets, server addresses, your real e-mail address
   and similar private data before they are published
@@ -61,14 +62,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.4.12_all.deb
+sudo apt install ./auth-switch_0.4.13_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.12-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.13-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -290,6 +291,7 @@ auth-switch                        # open the window
 auth-switch list                   # accounts as JSON
 auth-switch switch root@pam!ops    # switch from the shell
 auth-switch exec -- terraform plan # run a tool with the active account
+auth-switch exec --synology -- ./backup.py  # … with the active DSM account
 auth-switch leak-check             # check what the next push would publish
 ```
 
@@ -300,6 +302,17 @@ Telmate) and `PROXMOX_HOST`, `PROXMOX_PORT`, `PROXMOX_USER`,
 `PROXMOX_TOKEN_ID` and `PROXMOX_TOKEN_SECRET` (Ansible). Those tools verify the
 certificate themselves, so for them a certificate your system trusts is
 recommended.
+
+With `--synology` the program gets the active Synology DSM account instead.
+Auth-Switch signs in itself – with two-factor sign-in through its device token
+– and hands over only a session of its own: `SYNOLOGY_URL` (also as
+`SYNOLOGY_HOST`, as the Terraform provider for Synology expects it),
+`SYNOLOGY_USER`, `SYNOLOGY_SID` and `SYNOLOGY_SYNOTOKEN`, which goes along as
+the `X-SYNO-TOKEN` header. For a pinned certificate `SYNOLOGY_FINGERPRINT`
+holds its SHA-256 fingerprint, so the program can check it. When the program
+ends, the session is signed out. The password stays in the keyring; only with
+`--password` does the program get it as `SYNOLOGY_PASSWORD`, for tools that
+sign in themselves – with two-factor sign-in those usually still ask for a code.
 
 ## MCP server
 

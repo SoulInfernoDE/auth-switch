@@ -22,6 +22,10 @@ def main(argv: list[str] | None = None) -> int:
     switch.add_argument("--hostname")
     run = commands.add_parser("exec", help=_("run a command with the active account in its environment"))
     run.add_argument("--hostname")
+    run.add_argument("--synology", action="store_true",
+                     help=_("use the active Synology DSM account: the program gets a session of its own, signed out afterwards"))
+    run.add_argument("--password", action="store_true",
+                     help=_("with --synology: also hand over the DSM password, for tools that sign in themselves"))
     run.add_argument("program", nargs=argparse.REMAINDER)
     check = commands.add_parser("leak-check", help=_("check files or a git working copy for private data"))
     check.add_argument("paths", nargs="*")
@@ -39,6 +43,12 @@ def main(argv: list[str] | None = None) -> int:
             program = args.program[1:] if args.program[:1] == ["--"] else args.program
             if not program:
                 parser.error(_("exec needs a command, for example: auth-switch exec -- terraform plan"))
+            if args.synology:
+                from . import synology
+
+                return synology.run(program, args.hostname, args.password)
+            if args.password:
+                parser.error(_("--password goes only with --synology"))
             # The secret only reaches the child's environment; it is never printed.
             os.execvpe(program[0], program, {**os.environ, **core.environment(args.hostname)})
         if args.command == "leak-check":

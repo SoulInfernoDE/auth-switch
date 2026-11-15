@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import http.client
 import json
+import os
 import re
 import ssl
+import subprocess
 import threading
 import urllib.parse
 
@@ -138,9 +140,10 @@ def login(host: str, user: str, password: str, otp: str = "", device: str = "", 
     }
 
 
-def logout(host: str, sid: str, fingerprint: str | None = None) -> None:
+def logout(host: str, sid: str, fingerprint: str | None = None, token: str = "") -> None:
     try:
-        _post(host, {"api": "SYNO.API.Auth", "version": _auth_version(host, fingerprint), "method": "logout", "_sid": sid}, fingerprint)
+        fields = {"api": "SYNO.API.Auth", "version": _auth_version(host, fingerprint), "method": "logout", "_sid": sid}
+        _post(host, fields, fingerprint, token=token)
     except core.AuthError:
         pass
 
@@ -173,7 +176,7 @@ def validate(host: str, user: str, password: str, otp: str = "", fingerprint: st
     try:
         info = _info(host, session, fingerprint)
     finally:
-        logout(host, session["sid"], fingerprint)
+        logout(host, session["sid"], fingerprint, session["token"])
     version = str(info.get("version_string") or "").removeprefix("DSM ").strip()
     model = str(info.get("model") or "")
     return core.Profile(valid=True, version=version, detail=model), session["device"]
@@ -257,9 +260,50 @@ def forget(account: core.Account) -> None:
     with _lock:
         session = _sessions.pop((account.host, account.token_id), None)
     if session:
-        logout(account.host, session["sid"])
+        logout(account.host, session["sid"], token=session["token"])
     core.clear_secret(account.host, device_key(account.token_id))
 
 
 def is_read(method: str) -> bool:
     return bool(READ_METHOD.match(method or ""))
+
+
+def environment(account: core.Account, session: dict, password: str = "") -> dict[str, str]:
+    """Variables that hand a DSM session (and, if asked for, the password) to another program."""
+    name, port = core.split_host(account.host)
+    url = f"https://{name}" if port == 443 else f"https://{account.host}"
+    variables = {
+        # SYNOLOGY_HOST holds the URL, as the Terraform provider for Synology expects it.
+        "SYNOLOGY_HOST": url,
+        "SYNOLOGY_URL": url,
+        "SYNOLOGY_USER": account.token_id,
+        "SYNOLOGY_SID": session["sid"],
+        "SYNOLOGY_SYNOTOKEN": session["token"],
+    }
+    fingerprint = core.pinned_fingerprint(account.host)
+    if fingerprint:
+        variables["SYNOLOGY_FINGERPRINT"] = fingerprint
+    if password:
+        variables["SYNOLOGY_PASSWORD"] = password
+    return variables
+
+
+def run(program: list[str], host: str | None = None, with_password: bool = False) -> int:
+    """Run ``program`` with a session of the active DSM account of its own, signed out again afterwards."""
+    account = core.active_account(host, core.SYNOLOGY)
+    password = core._active_secret(account)
+    try:
+        device = core.lookup_secret(account.host, device_key(account.token_id))
+    except core.AuthError:
+        device = ""
+    try:
+        session = login(account.host, account.token_id, password, device=device)
+    except OtpRequired:
+        raise core.AuthError(_(
+            "DSM asks for a code of the second sign-in step for {user}; add the account again in Auth-Switch."
+        ).format(user=account.token_id)) from None
+    variables = environment(account, session, password if with_password else "")
+    try:
+        return subprocess.run(program, env={**os.environ, **variables}).returncode
+    finally:
+        logout(account.host, session["sid"], token=session["token"])

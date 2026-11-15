@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 import os
 import ssl
+import sys
 import subprocess
 import tempfile
 import threading
@@ -1107,6 +1108,24 @@ class SynologyTest(unittest.TestCase):
             with self.assertRaises(core.AuthError, msg=api):
                 synology.call(account, api, "get", 1)
         self.assertTrue(synology.is_read("list") and synology.is_read("getinfo") and not synology.is_read("delete"))
+
+    def test_exec_hands_over_a_session_and_signs_it_out(self):
+        synology.add_account(self.host, "dana", _DsmHandler.PASSWORD, fingerprint=self.pin)
+        script = "import json, os; print(json.dumps({k: v for k, v in os.environ.items() if k.startswith('SYNOLOGY_')}))"
+        with mock.patch.object(synology.subprocess, "run", wraps=synology.subprocess.run) as run, \
+                mock.patch.object(core, "pinned_fingerprint", return_value=self.pin):
+            self.assertEqual(synology.run([sys.executable, "-c", script]), 0)
+            seen = run.call_args.kwargs["env"]
+            self.assertEqual(seen["SYNOLOGY_SID"], "sid-1")
+            self.assertEqual(seen["SYNOLOGY_SYNOTOKEN"], "tok-1")
+            self.assertEqual(seen["SYNOLOGY_HOST"], f"https://{self.host}")
+            self.assertEqual(seen["SYNOLOGY_FINGERPRINT"], self.pin)
+            self.assertNotIn("SYNOLOGY_PASSWORD", seen)
+            self.assertEqual(_DsmHandler.calls[-1]["method"], "logout")
+            synology.run([sys.executable, "-c", "pass"], with_password=True)
+            self.assertEqual(run.call_args.kwargs["env"]["SYNOLOGY_PASSWORD"], _DsmHandler.PASSWORD)
+        self.assertEqual(synology.run([sys.executable, "-c", "raise SystemExit(3)"]), 3)
+        self.assertEqual(_DsmHandler.calls[-1]["method"], "logout")
 
     def test_mcp_tools_for_dsm(self):
         synology.add_account(self.host, "dana", _DsmHandler.PASSWORD, fingerprint=self.pin)

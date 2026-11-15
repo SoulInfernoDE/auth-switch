@@ -48,7 +48,8 @@ mitgelieferten MCP-Server. Auth-Switch basiert auf
 - Richtet SSH als root für dein eigenes Terminal ein und schaltet es ein und aus
 - Ändert das Passwort eines Kontos in einer VM oder einem Container oder benennt
   es um, ohne dass der alte Name zurückbleibt
-- Startet andere Werkzeuge mit dem aktiven Konto: `auth-switch exec -- terraform plan`
+- Startet andere Werkzeuge mit dem aktiven Konto: `auth-switch exec -- terraform plan`;
+  mit `--synology` bekommt ein Programm eine eigene DSM-Sitzung statt des Passworts
 - MCP-Server mit Lese- und Schreibzugriff auf die Proxmox-VE-API
 - Leak-Prüfung: findet Token-Geheimnisse, Serveradressen, deine echte
   E-Mail-Adresse und ähnliche private Daten, bevor sie veröffentlicht werden
@@ -64,14 +65,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.4.12_all.deb
+sudo apt install ./auth-switch_0.4.13_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.12-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.13-py3-none-any.whl
 ```
 
 ## Konto hinzufügen
@@ -315,6 +316,7 @@ auth-switch                        # Fenster öffnen
 auth-switch list                   # Konten als JSON
 auth-switch switch root@pam!ops    # Wechsel aus der Shell
 auth-switch exec -- terraform plan # Werkzeug mit dem aktiven Konto starten
+auth-switch exec --synology -- ./backup.py  # … mit dem aktiven DSM-Konto
 auth-switch leak-check             # prüfen, was der nächste Push veröffentlichen würde
 ```
 
@@ -325,6 +327,18 @@ Telmate) sowie `PROXMOX_HOST`, `PROXMOX_PORT`, `PROXMOX_USER`,
 `PROXMOX_TOKEN_ID` und `PROXMOX_TOKEN_SECRET` (Ansible). Diese Werkzeuge prüfen
 das Zertifikat selbst; für sie empfiehlt sich daher ein Zertifikat, dem dein
 System vertraut.
+
+Mit `--synology` bekommt das Programm stattdessen das aktive Synology-DSM-Konto.
+Auth-Switch meldet sich selbst an – bei Zwei-Faktor-Anmeldung über sein
+Geräte-Token – und übergibt nur eine eigene Sitzung: `SYNOLOGY_URL` (auch als
+`SYNOLOGY_HOST`, wie es der Terraform-Provider für Synology erwartet),
+`SYNOLOGY_USER`, `SYNOLOGY_SID` und `SYNOLOGY_SYNOTOKEN`, das als Header
+`X-SYNO-TOKEN` mitgeht. Bei einem festgelegten Zertifikat enthält
+`SYNOLOGY_FINGERPRINT` seinen SHA-256-Fingerabdruck, damit das Programm es
+prüfen kann. Endet das Programm, wird die Sitzung abgemeldet. Das Passwort
+bleibt im Schlüsselbund; nur mit `--password` bekommt das Programm es als
+`SYNOLOGY_PASSWORD`, für Werkzeuge, die sich selbst anmelden – bei
+Zwei-Faktor-Anmeldung fragen diese meist trotzdem nach einem Code.
 
 ## MCP-Server
 
