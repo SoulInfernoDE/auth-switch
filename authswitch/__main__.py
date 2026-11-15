@@ -12,7 +12,7 @@ from .i18n import _
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="auth-switch", description=_("Switch between Proxmox VE accounts."))
+    parser = argparse.ArgumentParser(prog="auth-switch", description=_("Switch between Proxmox VE and Synology DSM accounts."))
     parser.add_argument("--version", action="version", version=f"auth-switch {__version__}")
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("gui", help=_("open the window (default)"))

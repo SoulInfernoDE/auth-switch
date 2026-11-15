@@ -20,6 +20,8 @@ from . import core
 
 MAX_ADDRESSES = 1024
 _TITLE = re.compile(rb"<title>\s*(.*?)\s*-\s*Proxmox Virtual Environment\s*</title>", re.IGNORECASE | re.DOTALL)
+# DSM titles its sign-in page "<name> - Synology DiskStation" (or RackStation, VirtualDSM, …).
+_DSM_TITLE = re.compile(rb"<title>\s*(.*?)\s*-\s*Synology[^<]*</title>", re.IGNORECASE | re.DOTALL)
 # Container and VM bridges of this machine rarely host a Proxmox VE server.
 _SKIPPED_INTERFACES = ("lo", "docker", "veth", "br-", "podman", "cni", "flannel", "tun", "wg")
 
@@ -49,13 +51,15 @@ def local_networks() -> list[ipaddress.IPv4Network]:
     return networks
 
 
-def probe(address: str, port: int = core.DEFAULT_PORT, timeout: float = 0.8) -> str | None:
-    """The node name if ``address`` serves the Proxmox VE web interface, else ``None``."""
+def probe(address: str, port: int = core.DEFAULT_PORT, timeout: float = 0.8, kind: str = core.PROXMOX) -> str | None:
+    """The node or NAS name if ``address`` serves the web interface of ``kind``, else ``None``."""
     state, name = _ask(address, port, timeout)
-    return name if state == PROXMOX else None
+    return name if state == FOUND[kind] else None
 
 
-PROXMOX, OTHER, DOWN = "proxmox", "other", "down"
+PROXMOX, SYNOLOGY_FOUND, OTHER, DOWN = "proxmox", "synology", "other", "down"
+FOUND = {core.PROXMOX: PROXMOX, core.SYNOLOGY: SYNOLOGY_FOUND}
+PORTS = {core.PROXMOX: core.DEFAULT_PORT, core.SYNOLOGY: 5001}
 
 
 def _ask(address: str, port: int, timeout: float) -> tuple[str, str | None]:
@@ -86,16 +90,19 @@ def _ask(address: str, port: int, timeout: float) -> tuple[str, str | None]:
     match = _TITLE.search(page)
     if match:
         return PROXMOX, match.group(1).decode("utf-8", "replace")
+    match = _DSM_TITLE.search(page.replace(b"&nbsp;", b" "))
+    if match:
+        return SYNOLOGY_FOUND, match.group(1).decode("utf-8", "replace")
     return (OTHER, None) if page.startswith(b"HTTP/") else (DOWN, None)
 
 
-def check(text: str, timeout: float = 2.0) -> dict:
+def check(text: str, timeout: float = 2.0, kind: str = core.PROXMOX) -> dict:
     """Whether a typed address serves Proxmox VE, as ``{"host", "state", "name", "tried"}``.
 
     An address without a port is asked on port 8006 first and then on 443, where a server behind a
     reverse proxy answers; ``host`` is the address that answered.
     """
-    host = core.normalize_host(text)
+    host = core.normalize_host(text, PORTS[kind])
     if not host:
         return {"host": "", "state": DOWN, "name": None, "tried": []}
     candidates = [host]
@@ -105,24 +112,24 @@ def check(text: str, timeout: float = 2.0) -> dict:
     for candidate in candidates:
         address, port = core.split_host(candidate)
         state, name = _ask(address, port, timeout)
-        if state == PROXMOX:
+        if state == FOUND[kind]:
             return {"host": candidate, "state": state, "name": name, "tried": [port]}
-        if state == OTHER and first is None:
-            first = {"host": candidate, "state": state, "name": None, "tried": [port]}
+        if state in (OTHER, PROXMOX, SYNOLOGY_FOUND) and first is None:
+            first = {"host": candidate, "state": OTHER, "name": None, "tried": [port]}
     tried = [core.split_host(candidate)[1] for candidate in candidates]
     return first or {"host": host, "state": DOWN, "name": None, "tried": tried}
 
 
-def discover(networks: list[ipaddress.IPv4Network] | None = None, timeout: float = 0.8) -> list[dict]:
-    """Proxmox VE servers in ``networks`` (default: the local ones) as ``{"host", "address", "name"}``."""
+def discover(networks: list[ipaddress.IPv4Network] | None = None, timeout: float = 0.8, kind: str = core.PROXMOX) -> list[dict]:
+    """Servers of ``kind`` in ``networks`` (default: the local ones) as ``{"host", "address", "name"}``."""
     addresses = []
     for network in networks if networks is not None else local_networks():
         addresses += [str(host) for host in network.hosts()]
     addresses = addresses[:MAX_ADDRESSES]
     with ThreadPoolExecutor(max_workers=128) as pool:
-        names = list(pool.map(lambda address: probe(address, timeout=timeout), addresses))
+        names = list(pool.map(lambda address: probe(address, PORTS[kind], timeout, kind), addresses))
     found = [
-        {"host": f"{address}:{core.DEFAULT_PORT}", "address": address, "name": name}
+        {"host": f"{address}:{PORTS[kind]}", "address": address, "name": name}
         for address, name in zip(addresses, names)
         if name is not None
     ]

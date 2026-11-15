@@ -1,7 +1,7 @@
 """Find private data in content that is about to be published.
 
 Unlike a generic secret scanner this knows what is private on this machine:
-the secrets of the Proxmox VE accounts, the servers they belong to, the real
+the secrets of the Proxmox VE and Synology DSM accounts, the servers they belong to, the real
 git e-mail address, the home directory and the machine name.
 
 The user's Forgejo servers are stricter: their names and addresses may appear
@@ -151,6 +151,9 @@ def is_forgejo_target(location: str, context: "Context | None" = None) -> bool:
     return _host_name(repository_id(location).split("/", 1)[0]) in set(context.forgejo.values())
 
 
+MIN_SECRET_LENGTH = 8
+
+
 def gather() -> Context:
     context = Context(home=str(Path.home()), machine=socket.gethostname())
     settings = core.load_settings()
@@ -158,12 +161,18 @@ def gather() -> Context:
     _restricted_settings(context, settings)
     context.forgejo = forgejo_names(_forgejo_hosts(settings))
     for account in core.list_accounts():
-        try:
-            secret = core.lookup_secret(account.host, account.token_id)
-        except core.AuthError:
-            secret = ""
-        if secret:
-            context.tokens[secret] = f"{account.token_id} @ {account.host}"
+        # A DSM account has a password and possibly a device token that spares the second factor.
+        names = [account.token_id]
+        if account.kind == core.SYNOLOGY:
+            names.append(f"{account.token_id}#device")
+        for name in names:
+            try:
+                secret = core.lookup_secret(account.host, name)
+            except core.AuthError:
+                secret = ""
+            # A very short password would turn up in ordinary text all the time.
+            if len(secret) >= MIN_SECRET_LENGTH:
+                context.tokens[secret] = f"{account.token_id} @ {account.host}"
         context.hosts.add(core.split_host(account.host)[0].lower())
     email = core.get_git_email()
     if email and not _PLACEHOLDER_MAIL.search(email):

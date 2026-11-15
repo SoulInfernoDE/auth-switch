@@ -5,7 +5,7 @@
 <h1 align="center">Auth-Switch</h1>
 
 <p align="center">
-  Switch between Proxmox VE accounts with one click.<br>
+  Switch between Proxmox VE and Synology DSM accounts with one click.<br>
   <b>English</b> · <a href="README.de.md">Deutsch</a>
 </p>
 
@@ -13,14 +13,17 @@
   <img src="docs/screenshot.png" width="480" alt="Auth-Switch window">
 </p>
 
-A small GTK app that keeps Proxmox VE API tokens safe and switches the active
-account per server – in the window, on the command line, for other tools such
+A small GTK app that keeps Proxmox VE API tokens and Synology DSM accounts safe
+and switches the active account per server – in the window, on the command line, for other tools such
 as Terraform or Ansible, and for AI assistants through the bundled MCP server.
 Auth-Switch is based on [Git-Switch](https://github.com/SoulInfernoDE/gitswitch).
 
 ## Features
 
 - Accounts are API tokens (`user@realm!name`); several per server, one active
+- Synology DSM accounts as well: a DSM user and its password, two-factor
+  sign-in asked for once, DSM version and model at a glance, and tools for the
+  DSM Web API in the MCP server
 - Finds Proxmox VE servers in your local networks when you add an account
 - Shows per account whether the token still works, the Proxmox VE version and
   how long the token stays valid – its own expiry date or that of its user,
@@ -58,14 +61,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.4.10_all.deb
+sudo apt install ./auth-switch_0.4.11_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.10-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.11-py3-none-any.whl
 ```
 
 ## Adding an account
@@ -90,6 +93,24 @@ pipx install --system-site-packages auth_switch-0.4.10-py3-none-any.whl
    shows its SHA-256 fingerprint. Compare it with **Node → System →
    Certificates** or `pvenode cert info` on the server and confirm only if it
    matches.
+
+## Synology DSM accounts
+
+Choose **Synology DSM** as the kind of server when adding an account. DSM has
+no API tokens, so an account is a DSM user and its password; a user of its own
+for Auth-Switch with only the rights it needs is safest. The search finds DSM
+in your local networks on port 5001, and the dot below the address works as
+for Proxmox VE. A bare name means port 5001, an address with `https://` and no
+port means 443.
+
+With two-factor sign-in, Auth-Switch asks for the code once and DSM then lists
+it as a trusted device (DSM: **Personal → Security → Trusted devices**); later
+sign-ins need no code. The password and the device token stay in the system
+keyring only; sessions are kept in memory and opened again when DSM ends them.
+The self-signed certificate of DSM is pinned like that of Proxmox VE. Each
+account shows the DSM version and the model; its menu opens the web interface,
+takes a new password or removes the account – removing also deletes the device
+token.
 
 ## Permissions
 
@@ -293,19 +314,25 @@ switch that registers the server in both and removes it again. Tools:
 | `switch_proxmox_account` | Activate another token |
 | `proxmox_api_get` | Read from the API: nodes, guests, storage, tasks … |
 | `proxmox_api_write` | Change things: start/stop guests, snapshots, configuration … |
+| `list_synology_accounts` | DSM accounts per NAS, the active one, whether it can sign in, DSM version and model |
+| `switch_synology_account` | Activate another DSM user |
+| `synology_api_get` | Read from the DSM Web API: system, storage, shares, packages … (only reading methods) |
+| `synology_api_write` | Change things through the DSM Web API: start packages, change settings … |
 | `check_for_leaks` | Check text, files or the next push for private data |
 
 Reading and writing are separate tools so that reading can be allowed
 permanently while changes still ask for confirmation. Calls run with the
-permissions of the active token, so a token with limited rights limits what the
-assistant can do.
+permissions of the active token or DSM user, so an account with limited rights
+limits what the assistant can do. The DSM tools take an API, a method and its
+version as DSM documents them; parts of the DSM API that hand out sessions,
+passwords or second factors are blocked.
 
 ## Leak check
 
 | Severity | What is found |
 | --- | --- |
-| `secret` | The secrets of your tokens, other access tokens, private keys, references to your Forgejo servers outside Forgejo |
-| `private` | Addresses of your Proxmox VE servers, your real git e-mail address, paths in your home directory |
+| `secret` | The secrets of your tokens, your DSM passwords (from 8 characters) and device tokens, other access tokens, private keys, references to your Forgejo servers outside Forgejo |
+| `private` | Addresses of your Proxmox VE servers and Synology NAS, your real git e-mail address, paths in your home directory |
 | `review` | Other e-mail addresses, the computer name, private network addresses, internal host names |
 
 Your Forgejo servers stay inside Forgejo: their host names and addresses may

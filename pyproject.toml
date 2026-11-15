@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "auth-switch"
-description = "GUI and MCP server for switching Proxmox VE accounts"
+description = "GUI and MCP server for switching Proxmox VE and Synology DSM accounts"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"

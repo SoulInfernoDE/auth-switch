@@ -1,4 +1,4 @@
-"""Proxmox VE accounts: storage, certificate pinning, API access and switching.
+"""Proxmox VE and Synology DSM accounts: storage, certificate pinning, API access and switching.
 
 An account is an API token (``user@realm!name``) on a Proxmox VE server. Its
 secret lives in the system keyring only; a small file lists the accounts, the
@@ -43,11 +43,17 @@ class AuthError(RuntimeError):
     """Raised for anything the user has to be told about."""
 
 
+PROXMOX = "proxmox"
+SYNOLOGY = "synology"
+
+
 @dataclass(frozen=True)
 class Account:
     host: str
+    # The API token for Proxmox VE, the user name for Synology DSM.
     token_id: str
     active: bool
+    kind: str = PROXMOX
 
     @property
     def user(self) -> str:
@@ -100,6 +106,7 @@ def _load() -> dict[str, dict]:
         tokens = entry.get("tokens") if isinstance(entry, dict) else None
         if isinstance(tokens, list) and tokens:
             hosts[host] = {
+                "kind": SYNOLOGY if entry.get("kind") == SYNOLOGY else PROXMOX,
                 "tokens": [str(token) for token in tokens],
                 "active": str(entry.get("active") or ""),
                 "fingerprint": str(entry.get("fingerprint") or ""),
@@ -119,8 +126,11 @@ def _load() -> dict[str, dict]:
     return hosts
 
 
-def list_accounts() -> list[Account]:
-    return [Account(host, token, token == entry["active"]) for host, entry in _load().items() for token in entry["tokens"]]
+def list_accounts(kind: str | None = None) -> list[Account]:
+    accounts = [
+        Account(host, token, token == entry["active"], entry["kind"]) for host, entry in _load().items() for token in entry["tokens"]
+    ]
+    return [account for account in accounts if kind is None or account.kind == kind]
 
 
 def load_settings() -> dict:
@@ -141,7 +151,7 @@ def save_settings(settings: dict) -> None:
 # --- input ------------------------------------------------------------------
 
 
-def normalize_host(text: str) -> str:
+def normalize_host(text: str, default_port: int = DEFAULT_PORT) -> str:
     """Turn a pasted address such as ``https://PVE.lan:8006/#v1`` into ``pve.lan:8006``.
 
     Without a port, an address with ``https://`` means port 443 as in a browser (a server behind a
@@ -154,7 +164,7 @@ def normalize_host(text: str) -> str:
         return ""
     if has_port(host):
         return host
-    return f"{host}:{443 if separator and scheme in ('https', 'http') else DEFAULT_PORT}"
+    return f"{host}:{443 if separator and scheme in ('https', 'http') else default_port}"
 
 
 def has_port(text: str) -> bool:
@@ -409,6 +419,10 @@ def _remember_expiry(host: str, token_id: str, expires: int) -> None:
 
 
 def fetch_profile(account: Account) -> Profile:
+    if account.kind == SYNOLOGY:
+        from . import synology
+
+        return synology.fetch_profile(account)
     try:
         secret = lookup_secret(account.host, account.token_id)
     except AuthError as error:
@@ -457,18 +471,25 @@ def add_account(host: str, token_id: str, secret: str, fingerprint: str = "") ->
     if not profile.valid:
         raise AuthError(profile.detail or _("{host} did not answer like a Proxmox VE server.").format(host=host))
     store_secret(host, token_id, secret)
+    return remember_account(host, token_id, fingerprint, PROXMOX, profile.expires)
+
+
+def remember_account(host: str, token_id: str, fingerprint: str, kind: str, expires: int | None = None) -> Account:
+    """File a checked account whose secret is in the keyring already."""
     hosts = _load()
-    entry = hosts.setdefault(host, {"tokens": [], "active": "", "fingerprint": "", "repository": "", "blocked": {}})
+    if host in hosts and hosts[host]["kind"] != kind:
+        raise AuthError(_("{host} is set up as another kind of server already.").format(host=host))
+    entry = hosts.setdefault(host, {"kind": kind, "tokens": [], "active": "", "fingerprint": "", "repository": "", "blocked": {}})
     if token_id not in entry["tokens"]:
-        # A new token becomes active; a new secret for a known one leaves the active account as it is.
+        # A new account becomes active; a new secret for a known one leaves the active account as it is.
         entry["tokens"].append(token_id)
         entry["active"] = token_id
     entry["active"] = entry["active"] or token_id
     entry["fingerprint"] = fingerprint
-    if profile.expires is not None:
-        entry.setdefault("expires", {})[token_id] = profile.expires
+    if expires is not None:
+        entry.setdefault("expires", {})[token_id] = expires
     _write_private(accounts_file(), hosts)
-    return Account(host, token_id, entry["active"] == token_id)
+    return Account(host, token_id, entry["active"] == token_id, kind)
 
 
 def _on_host(account: Account, host: str | None) -> bool:
@@ -480,10 +501,10 @@ def _on_host(account: Account, host: str | None) -> bool:
     return not has_port(host) and split_host(account.host)[0] == host.strip().lower().split("://", 1)[-1].strip("/")
 
 
-def find_account(token_or_user: str, host: str | None = None) -> Account:
+def find_account(token_or_user: str, host: str | None = None, kind: str | None = None) -> Account:
     """Resolve a token ID, or a user that has exactly one token, to a known account."""
     wanted = token_or_user.strip().lower()
-    candidates = [account for account in list_accounts() if _on_host(account, host)]
+    candidates = [account for account in list_accounts(kind) if _on_host(account, host)]
     matches = [a for a in candidates if a.token_id.lower() == wanted] or [
         a for a in candidates if a.user.lower() == wanted
     ]
@@ -495,8 +516,8 @@ def find_account(token_or_user: str, host: str | None = None) -> Account:
     return matches[0]
 
 
-def switch_account(token_or_user: str, host: str | None = None) -> dict:
-    account = find_account(token_or_user, host)
+def switch_account(token_or_user: str, host: str | None = None, kind: str | None = None) -> dict:
+    account = find_account(token_or_user, host, kind)
     hosts = _load()
     hosts[account.host]["active"] = account.token_id
     _write_private(accounts_file(), hosts)
@@ -504,6 +525,10 @@ def switch_account(token_or_user: str, host: str | None = None) -> dict:
 
 
 def remove_account(account: Account) -> None:
+    if account.kind == SYNOLOGY:
+        from . import synology
+
+        synology.forget(account)
     clear_secret(account.host, account.token_id)
     hosts = _load()
     entry = hosts.get(account.host)
@@ -518,11 +543,15 @@ def remove_account(account: Account) -> None:
     _write_private(accounts_file(), hosts)
 
 
-def active_account(host: str | None = None) -> Account:
-    active = [account for account in list_accounts() if account.active and _on_host(account, host)]
+def active_account(host: str | None = None, kind: str = PROXMOX) -> Account:
+    active = [account for account in list_accounts(kind) if account.active and _on_host(account, host)]
     if not active:
+        if kind == SYNOLOGY:
+            raise AuthError(_("No Synology DSM account is set up for this server."))
         raise AuthError(_("No Proxmox VE account is set up for this server."))
     if len(active) > 1:
+        if kind == SYNOLOGY:
+            raise AuthError(_("Several Synology DSM servers are known; pass a hostname."))
         raise AuthError(_("Several Proxmox VE servers are known; pass a hostname."))
     return active[0]
 
@@ -1115,10 +1144,10 @@ def major_upgrade_guide(version: str) -> str:
     return f"https://pve.proxmox.com/wiki/Upgrade_from_{major}_to_{major + 1}"
 
 
-def describe_accounts(check: bool = True) -> list[dict]:
-    """Plain-data view of all accounts; never includes a secret."""
+def describe_accounts(check: bool = True, kind: str | None = None) -> list[dict]:
+    """Plain-data view of all accounts (or those of one kind of server); never includes a secret."""
     described = []
-    for account in list_accounts():
+    for account in list_accounts(kind):
         entry = {
             "host": account.host,
             "token_id": account.token_id,
@@ -1126,6 +1155,14 @@ def describe_accounts(check: bool = True) -> list[dict]:
             "pinned_certificate": bool(pinned_fingerprint(account.host)),
             "repository": stored_repository(account.host),
         }
+        if account.kind == SYNOLOGY:
+            entry = {"host": account.host, "user": account.token_id, "active": account.active,
+                     "pinned_certificate": entry["pinned_certificate"]}
+            if check:
+                profile = fetch_profile(account)
+                entry.update(account_valid=profile.valid, version=profile.version, model=profile.detail if profile.valid else "")
+            described.append(entry)
+            continue
         if check:
             profile = fetch_profile(account)
             expiry = expiry_info(profile.expires)

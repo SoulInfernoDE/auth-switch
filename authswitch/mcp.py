@@ -1,4 +1,4 @@
-"""Minimal MCP server (stdio transport) for Proxmox VE accounts.
+"""Minimal MCP server (stdio transport) for Proxmox VE and Synology DSM accounts.
 
 Implements just the parts of the Model Context Protocol that a tool-only
 server needs, so no third-party SDK is required.
@@ -10,7 +10,7 @@ import json
 import sys
 import threading
 
-from . import __version__, core, leaks, update
+from . import __version__, core, leaks, synology, update
 from .i18n import _, ngettext
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -86,9 +86,73 @@ TOOLS = [
         "annotations": {"readOnlyHint": False, "destructiveHint": True},
     },
     {
+        "name": "list_synology_accounts",
+        "description": _(
+            "List the Synology DSM accounts Auth-Switch manages, per NAS, including which one is active, whether "
+            "it can still sign in, the DSM version and the model. Passwords are never returned."
+        ),
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "switch_synology_account",
+        "description": _("Make another DSM user the active account of a Synology NAS; the DSM tools then act as this user."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"user": {"type": "string", "description": _("DSM user name")}, "hostname": HOSTNAME},
+            "required": ["user"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "synology_api_get",
+        "description": _(
+            "Read through the Synology DSM Web API as the active account: one API, method and version, for "
+            "example SYNO.Core.System / info / 1, SYNO.Storage.CGI.Storage / load_info / 1, SYNO.Core.Share / "
+            "list / 1 or SYNO.Core.Package / list / 2. Which APIs and versions a NAS offers is listed by "
+            "SYNO.API.Info / query / 1 with query=all. Only reading methods (get, list, query, info, status, load, "
+            "…) are accepted; APIs that hand out sessions, passwords or second factors are blocked."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "api": {"type": "string", "description": _("API name such as SYNO.Core.System")},
+                "method": {"type": "string", "description": _("Method such as info or list")},
+                "version": {"type": "integer", "description": _("API version")},
+                "params": {"type": "object", "description": _("Further parameters; objects and lists are sent as JSON")},
+                "hostname": HOSTNAME,
+            },
+            "required": ["api", "method", "version"],
+            "additionalProperties": False,
+        },
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "synology_api_write",
+        "description": _(
+            "Change something through the Synology DSM Web API as the active account: any method that is not "
+            "only reading, for example SYNO.Core.Package.Control / start / 1 with id, or SYNO.Core.Share / set "
+            "/ 1. APIs that hand out sessions, passwords or second factors are blocked. Deleting methods remove "
+            "data permanently."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "api": {"type": "string", "description": _("API name such as SYNO.Core.System")},
+                "method": {"type": "string", "description": _("Method such as set or start")},
+                "version": {"type": "integer", "description": _("API version")},
+                "params": {"type": "object", "description": _("Further parameters; objects and lists are sent as JSON")},
+                "hostname": HOSTNAME,
+            },
+            "required": ["api", "method", "version"],
+            "additionalProperties": False,
+        },
+        "annotations": {"readOnlyHint": False, "destructiveHint": True},
+    },
+    {
         "name": "check_for_leaks",
         "description": _(
-            "Check content for private data before it is published: secrets of the Proxmox VE accounts, other "
+            "Check content for private data before it is published: secrets of the Proxmox VE and Synology DSM accounts, other "
             "access tokens and private keys, addresses of the user's Proxmox servers, the real git e-mail "
             "address, paths in the home directory, the computer name and internal network addresses. Call it "
             "before committing, pushing, creating a release, opening an issue or pull request, or putting text "
@@ -190,7 +254,7 @@ def _call_tool(name: str, arguments: dict) -> object:
     params = arguments.get("params") if isinstance(arguments.get("params"), dict) else None
     host = text.get("hostname")
     if name == "list_proxmox_accounts":
-        accounts = core.describe_accounts()
+        accounts = core.describe_accounts(kind=core.PROXMOX)
         result: dict = {"accounts": accounts}
         found = notices() + expiry_notices(accounts)
         if found:
@@ -199,7 +263,7 @@ def _call_tool(name: str, arguments: dict) -> object:
     if name == "switch_proxmox_account":
         if not text.get("token_id"):
             raise core.AuthError(_("'token_id' is required"))
-        return core.switch_account(text["token_id"], host)
+        return core.switch_account(text["token_id"], host, core.PROXMOX)
     if name == "proxmox_api_get":
         return core.api("GET", text.get("path", ""), params, host)
     if name == "proxmox_api_write":
@@ -208,6 +272,24 @@ def _call_tool(name: str, arguments: dict) -> object:
             raise core.AuthError(_("Unsupported method: {method}").format(method=method))
         _refuse_secrets(text.get("path"), params)
         return core.api(method, text.get("path", ""), params, host)
+    if name == "list_synology_accounts":
+        return {"accounts": core.describe_accounts(kind=core.SYNOLOGY)}
+    if name == "switch_synology_account":
+        if not text.get("user"):
+            raise core.AuthError(_("'user' is required"))
+        switched = core.switch_account(text["user"], host, core.SYNOLOGY)
+        return {"host": switched["host"], "user": switched["token_id"]}
+    if name in ("synology_api_get", "synology_api_write"):
+        api, method = text.get("api", ""), text.get("method", "")
+        version = arguments.get("version")
+        if not isinstance(version, int) or isinstance(version, bool):
+            raise core.AuthError(_("'version' must be a number"))
+        if name == "synology_api_get" and not synology.is_read(method):
+            raise core.AuthError(_("{method} changes something; use synology_api_write for it.").format(method=method))
+        if name == "synology_api_write":
+            _refuse_secrets(params)
+        account = core.active_account(host, core.SYNOLOGY)
+        return synology.call(account, api, method, version, params)
     if name == "check_for_leaks":
         context, found = leaks.gather(), []
         if isinstance(arguments.get("destination"), str) and leaks.is_forgejo_target(arguments["destination"], context):

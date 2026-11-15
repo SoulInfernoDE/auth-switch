@@ -34,7 +34,7 @@ Depends: python3 (>= 3.10), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1 (>= 1.4), g
 Recommends: git, pipewire-bin | pulseaudio-utils | alsa-utils
 Section: admin
 Priority: optional
-Description: GUI and MCP server for switching Proxmox VE accounts
+Description: GUI and MCP server for switching Proxmox VE and Synology DSM accounts
  A small GTK window that keeps Proxmox VE API tokens in the system keyring
  and switches the active account per server. Servers with self-signed
  certificates are pinned to the fingerprint the user confirmed. Ships an

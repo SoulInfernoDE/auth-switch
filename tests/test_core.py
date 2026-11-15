@@ -8,10 +8,11 @@ import subprocess
 import tempfile
 import threading
 import unittest
+import urllib.parse
 from pathlib import Path
 from unittest import mock
 
-from authswitch import core, discovery, guestaccounts, guestfiles, leaks, mcp, rootshell, sshaccess, update
+from authswitch import core, discovery, guestaccounts, guestfiles, leaks, mcp, rootshell, sshaccess, synology, update
 
 TOKEN = "root@pam!automation"
 SECRET = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0"
@@ -357,7 +358,8 @@ class AccountTest(unittest.TestCase):
         names = [tool["name"] for tool in mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]]
         self.assertEqual(
             names,
-            ["list_proxmox_accounts", "switch_proxmox_account", "proxmox_api_get", "proxmox_api_write", "check_for_leaks"],
+            ["list_proxmox_accounts", "switch_proxmox_account", "proxmox_api_get", "proxmox_api_write", "list_synology_accounts",
+             "switch_synology_account", "synology_api_get", "synology_api_write", "check_for_leaks"],
         )
         with mock.patch.object(core, "request", return_value={"ok": 1}) as request:
             call = {"name": "proxmox_api_write", "arguments": {"method": "POST", "path": "/nodes/pve/qemu/100/status/start"}}
@@ -935,7 +937,7 @@ class DiscoveryTest(unittest.TestCase):
         import ipaddress
 
         names = {"192.168.1.10": "pve", "192.168.1.11": "pve2"}
-        with mock.patch.object(discovery, "probe", side_effect=lambda address, timeout: names.get(address)):
+        with mock.patch.object(discovery, "probe", side_effect=lambda address, *_args, **_kwargs: names.get(address)):
             found = discovery.discover([ipaddress.ip_network("192.168.1.0/28")])
         self.assertEqual(found, [
             {"host": "192.168.1.10:8006", "address": "192.168.1.10", "name": "pve"},
@@ -959,6 +961,160 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, *_args):
         pass
+
+
+class _DsmHandler(http.server.BaseHTTPRequestHandler):
+    """Just enough of the DSM Web API: sign-in with and without a second factor, sessions, a few calls."""
+
+    PASSWORD = "nas-secret-42"
+    sessions = {"sid-1"}
+    calls: list = []
+
+    def answer(self, payload):
+        body = json.dumps(payload).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        body = b"<html><head><title>nas&nbsp;-&nbsp;Synology&nbsp;DiskStation</title></head></html>"
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        fields = dict(urllib.parse.parse_qsl(self.rfile.read(length).decode()))
+        _DsmHandler.calls.append(fields)
+        api, method = fields.get("api"), fields.get("method")
+        if api == "SYNO.API.Auth" and method == "login":
+            if fields.get("passwd") != self.PASSWORD:
+                return self.answer({"success": False, "error": {"code": 400}})
+            if fields.get("account") == "two-step":
+                if fields.get("otp_code") == "123456":
+                    return self.answer({"success": True, "data": {"sid": "sid-1", "did": "device-1"}})
+                if fields.get("device_id") != "device-1":
+                    return self.answer({"success": False, "error": {"code": 403}})
+            return self.answer({"success": True, "data": {"sid": "sid-1"}})
+        if api == "SYNO.API.Auth":
+            return self.answer({"success": True})
+        if fields.get("_sid") not in self.sessions:
+            return self.answer({"success": False, "error": {"code": 119}})
+        if api == "SYNO.DSM.Info":
+            return self.answer({"success": True, "data": {"model": "DS920+", "version_string": "DSM 7.2.2-72806"}})
+        if api == "SYNO.Core.System":
+            return self.answer({"success": True, "data": {"hostname": "nas", "params": fields.get("additional")}})
+        return self.answer({"success": False, "error": {"code": 102}})
+
+    def log_message(self, *_args):
+        pass
+
+
+@unittest.skipUnless(subprocess.run(["which", "openssl"], capture_output=True).returncode == 0, "needs openssl")
+class SynologyTest(unittest.TestCase):
+    """Synology DSM accounts against a stand-in DSM with a self-signed certificate, as DSM ships it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dir = tempfile.TemporaryDirectory()
+        key, cert = Path(cls.dir.name, "key.pem"), Path(cls.dir.name, "cert.pem")
+        subprocess.run(
+            ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=localhost",
+             "-keyout", key, "-out", cert],
+            check=True, capture_output=True,
+        )
+        cls.server = http.server.HTTPServer(("127.0.0.1", 0), _DsmHandler)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(cert, key)
+        cls.server.socket = context.wrap_socket(cls.server.socket, server_side=True)
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.host = f"127.0.0.1:{cls.server.server_address[1]}"
+        cls.pin = core.server_fingerprint(cls.host)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.dir.cleanup()
+
+    def setUp(self):
+        _DsmHandler.calls.clear()
+        self.home = tempfile.TemporaryDirectory()
+        self.addCleanup(self.home.cleanup)
+        self.keyring = {}
+        for patcher in (
+            mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": self.home.name, "XDG_CACHE_HOME": self.home.name}),
+            mock.patch.object(core, "store_secret", lambda host, name, secret: self.keyring.__setitem__((host, name), secret)),
+            mock.patch.object(core, "lookup_secret", lambda host, name: self.keyring.get((host, name), "")),
+            mock.patch.object(core, "clear_secret", lambda host, name: self.keyring.pop((host, name), None)),
+            mock.patch.object(synology, "_", lambda text: text),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        synology._sessions.clear()
+
+    def test_a_bare_name_means_the_dsm_port(self):
+        self.assertEqual(core.normalize_host("nas.example.com", synology.DEFAULT_PORT), "nas.example.com:5001")
+        self.assertEqual(core.normalize_host("https://nas.example.com", synology.DEFAULT_PORT), "nas.example.com:443")
+
+    def test_add_reads_model_and_version_and_keeps_the_password_in_the_keyring(self):
+        account = synology.add_account(self.host, "dana", _DsmHandler.PASSWORD, fingerprint=self.pin)
+        self.assertEqual((account.kind, account.token_id, account.active), (core.SYNOLOGY, "dana", True))
+        self.assertEqual(self.keyring[(self.host, "dana")], _DsmHandler.PASSWORD)
+        profile = core.fetch_profile(core.list_accounts(core.SYNOLOGY)[0])
+        self.assertEqual((profile.valid, profile.version, profile.detail), (True, "7.2.2-72806", "DS920+"))
+        self.assertEqual(core.list_accounts(core.PROXMOX), [])
+        # Every session is closed again after the check.
+        self.assertIn("logout", [call["method"] for call in _DsmHandler.calls])
+
+    def test_a_wrong_password_is_rejected(self):
+        with self.assertRaises(core.AuthError):
+            synology.add_account(self.host, "dana", "wrong", fingerprint=self.pin)
+        self.assertEqual(self.keyring, {})
+
+    def test_second_factor_once_then_the_device_token(self):
+        with self.assertRaises(synology.OtpRequired):
+            synology.add_account(self.host, "two-step", _DsmHandler.PASSWORD, fingerprint=self.pin)
+        synology.add_account(self.host, "two-step", _DsmHandler.PASSWORD, otp="123456", fingerprint=self.pin)
+        self.assertEqual(self.keyring[(self.host, "two-step#device")], "device-1")
+        self.assertTrue(core.fetch_profile(core.list_accounts()[0]).valid)
+        core.remove_account(core.list_accounts()[0])
+        self.assertEqual(self.keyring, {})
+
+    def test_calls_open_a_new_session_when_dsm_ended_the_old_one(self):
+        account = synology.add_account(self.host, "dana", _DsmHandler.PASSWORD, fingerprint=self.pin)
+        synology._sessions[(self.host, "dana")] = "ended"
+        data = synology.call(account, "SYNO.Core.System", "info", 1, {"additional": ["cpu"]})
+        self.assertEqual(data, {"hostname": "nas", "params": '["cpu"]'})
+        self.assertEqual(synology._sessions[(self.host, "dana")], "sid-1")
+
+    def test_credentials_are_out_of_reach(self):
+        account = synology.add_account(self.host, "dana", _DsmHandler.PASSWORD, fingerprint=self.pin)
+        for api in ("SYNO.API.Auth", "SYNO.API.Auth.Key", "SYNO.Core.OTP", "SYNO.Core.User.PasswordConfirm"):
+            with self.assertRaises(core.AuthError, msg=api):
+                synology.call(account, api, "get", 1)
+        self.assertTrue(synology.is_read("list") and synology.is_read("getinfo") and not synology.is_read("delete"))
+
+    def test_mcp_tools_for_dsm(self):
+        synology.add_account(self.host, "dana", _DsmHandler.PASSWORD, fingerprint=self.pin)
+        def call(name, arguments):
+            return mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": arguments}})["result"]
+        listed = json.loads(call("list_synology_accounts", {})["content"][0]["text"])
+        self.assertEqual(listed["accounts"][0]["user"], "dana")
+        self.assertNotIn(_DsmHandler.PASSWORD, json.dumps(listed))
+        read = call("synology_api_get", {"api": "SYNO.Core.System", "method": "info", "version": 1})
+        self.assertIn("hostname", read["content"][0]["text"])
+        refused = call("synology_api_get", {"api": "SYNO.Core.System", "method": "reboot", "version": 1})
+        self.assertTrue(refused["isError"])
+        proxmox = json.loads(call("list_proxmox_accounts", {})["content"][0]["text"])
+        self.assertEqual(proxmox["accounts"], [])
+
+    def test_check_recognises_dsm(self):
+        address, port = self.host.split(":")
+        self.assertEqual(discovery.check(self.host, kind=core.SYNOLOGY)["state"], discovery.SYNOLOGY_FOUND)
+        self.assertEqual(discovery.check(self.host, kind=core.SYNOLOGY)["name"], "nas")
 
 
 @unittest.skipUnless(subprocess.run(["which", "openssl"], capture_output=True).returncode == 0, "needs openssl")

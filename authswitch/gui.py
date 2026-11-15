@@ -1,4 +1,4 @@
-"""GTK 4 / libadwaita window for switching Proxmox VE accounts."""
+"""GTK 4 / libadwaita window for switching Proxmox VE and Synology DSM accounts."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import __version__, core, discovery, guestaccounts, guestfiles, rootshell, sound, sshaccess, update  # noqa: E402
+from . import __version__, core, discovery, guestaccounts, guestfiles, rootshell, sound, sshaccess, synology, update  # noqa: E402
 from .i18n import _, ngettext  # noqa: E402
 
 APP_ID = ICON_NAME = "dev.authswitch.AuthSwitch"
@@ -159,7 +159,7 @@ class Window(Adw.ApplicationWindow):
             application_name="Auth-Switch",
             application_icon=ICON_NAME,
             version=__version__,
-            comments=_("Switch between Proxmox VE accounts"),
+            comments=_("Switch between Proxmox VE and Synology DSM accounts"),
             website="https://github.com/SoulInfernoDE/auth-switch",
             issue_url="https://github.com/SoulInfernoDE/auth-switch/issues",
             license_type=Gtk.License.MIT_X11,
@@ -188,7 +188,7 @@ class Window(Adw.ApplicationWindow):
         accounts = core.list_accounts()
         if not accounts:
             self.status.set_title(_("No accounts yet"))
-            self.status.set_description(_("Add an API token of your Proxmox VE server to get started."))
+            self.status.set_description(_("Add an API token of your Proxmox VE server or a user of your Synology NAS to get started."))
             button = Gtk.Button(label=_("Add account"), halign=Gtk.Align.CENTER)
             button.add_css_class("pill")
             button.add_css_class("suggested-action")
@@ -238,25 +238,34 @@ class Window(Adw.ApplicationWindow):
 
         target = GLib.Variant("(ss)", (account.host, account.token_id))
         menu = Gio.Menu()
-        for label, action, value in (
-            (_("Permissions…"), "win.permissions", target),
-            (_("Subscription and repository…"), "win.repository", target),
-            (_("Updates and language…"), "win.maintenance", target),
-            (_("SSH for my terminal…"), "win.ssh", target),
-            (_("Open web interface"), "win.web", GLib.Variant("s", account.host)),
-            (_("Enter secret again"), "win.again", target),
-            (_("Remove"), "win.remove", target),
-        ):
+        if account.kind == core.SYNOLOGY:
+            entries = (
+                (_("Open web interface"), "win.web", GLib.Variant("s", account.host)),
+                (_("Enter password again"), "win.again", target),
+                (_("Remove"), "win.remove", target),
+            )
+        else:
+            entries = (
+                (_("Permissions…"), "win.permissions", target),
+                (_("Subscription and repository…"), "win.repository", target),
+                (_("Updates and language…"), "win.maintenance", target),
+                (_("SSH for my terminal…"), "win.ssh", target),
+                (_("Open web interface"), "win.web", GLib.Variant("s", account.host)),
+                (_("Enter secret again"), "win.again", target),
+                (_("Remove"), "win.remove", target),
+            )
+        for label, action, value in entries:
             item = Gio.MenuItem.new(label, None)
             item.set_action_and_target_value(action, value)
             menu.append_item(item)
-        access = Gtk.Button(
-            icon_name="changes-prevent-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Access to guests and storage")
-        )
-        access.add_css_class("flat")
-        access.opens_access = True
-        access.connect("clicked", lambda _b, a=account: self.show_access(a))
-        row.add_suffix(access)
+        if account.kind == core.PROXMOX:
+            access = Gtk.Button(
+                icon_name="changes-prevent-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Access to guests and storage")
+            )
+            access.add_css_class("flat")
+            access.opens_access = True
+            access.connect("clicked", lambda _b, a=account: self.show_access(a))
+            row.add_suffix(access)
         more = Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, valign=Gtk.Align.CENTER)
         more.add_css_class("flat")
         row.add_suffix(more)
@@ -274,7 +283,7 @@ class Window(Adw.ApplicationWindow):
         if account in self.profiles:
             show(self.profiles[account])
         else:
-            row.set_subtitle(_("Checking token…"))
+            row.set_subtitle(_("Checking token…") if account.kind == core.PROXMOX else _("Signing in…"))
             run_async(lambda: core.fetch_profile(account), show)
         return row
 
@@ -312,6 +321,19 @@ class Window(Adw.ApplicationWindow):
                 self.toast(message.format(token=name, days=expiry["days"]))
 
     def show_profile(self, row, account: core.Account, profile: core.Profile) -> None:
+        if account.kind == core.SYNOLOGY:
+            if profile.valid is False:
+                row.set_subtitle(_("Sign-in failed – enter the password again"))
+                if not account.active:
+                    row.button.set_label(_("Enter again"))
+            elif profile.valid is None:
+                row.set_subtitle(_("Server not reachable"))
+            else:
+                parts = [_("Synology DSM {version}").format(version=profile.version)] if profile.version else []
+                parts += [profile.detail] if profile.detail else []
+                parts += [_("Active")] if account.active else []
+                row.set_subtitle(" · ".join(parts))
+            return
         expiry = core.expiry_info(profile.expires)
         expiry_text = self.expiry_text(expiry, profile.expires)
         if profile.valid is False:
@@ -1031,11 +1053,18 @@ class Window(Adw.ApplicationWindow):
 
     # --- adding an account -------------------------------------------------
 
-    def ask_account(self, host: str = "", token_id: str = "") -> None:
-        """Dialog for adding an account: server, token ID and secret."""
-        server = Adw.EntryRow(title=_("Server address, e.g. pve.example.com"), text=host)
-        token = Adw.EntryRow(title=_("API token ID, e.g. root@pam!auth-switch"), text=token_id)
-        secret = Adw.PasswordEntryRow(title=_("Secret"))
+    def ask_account(self, host: str = "", token_id: str = "", kind: str | None = None) -> None:
+        """Dialog for adding an account: kind of server, address, token ID or user, and secret or password."""
+        same_host = [account.kind for account in core.list_accounts() if account.host == host]
+        current = {"kind": same_host[0] if same_host else kind or core.PROXMOX}
+        kinds = [core.PROXMOX, core.SYNOLOGY]
+        kind_row = Adw.ComboRow(title=_("Kind of server"), model=Gtk.StringList.new(["Proxmox VE", "Synology DSM"]))
+        kind_row.set_selected(kinds.index(current["kind"]))
+        # A known server keeps its kind.
+        kind_row.set_visible(not same_host)
+        server = Adw.EntryRow(text=host)
+        token = Adw.EntryRow(text=token_id)
+        secret = Adw.PasswordEntryRow()
         web = Gtk.Button(icon_name="web-browser-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Open web interface"))
         web.add_css_class("flat")
         server.add_suffix(web)
@@ -1056,7 +1085,7 @@ class Window(Adw.ApplicationWindow):
         rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         rows.add_css_class("boxed-list")
         rows.set_size_request(420, -1)
-        for row in (found, server, reach, token, secret):
+        for row in (kind_row, found, server, reach, token, secret):
             rows.append(row)
         servers: list[dict] = []
         state = {"typed": None, "resolved": None, "timer": 0}
@@ -1075,12 +1104,19 @@ class Window(Adw.ApplicationWindow):
                 return
             state["resolved"] = (typed, result["host"])
             port = core.split_host(result["host"])[1]
-            if result["state"] == discovery.PROXMOX:
+            synology_kind = current["kind"] == core.SYNOLOGY
+            if result["state"] == discovery.FOUND[current["kind"]]:
                 dot.add_css_class("success")
-                reach.set_title(_("Proxmox VE reachable: {node}, port {port}").format(node=result["name"], port=port))
+                if synology_kind:
+                    reach.set_title(_("Synology DSM reachable: {name}, port {port}").format(name=result["name"], port=port))
+                else:
+                    reach.set_title(_("Proxmox VE reachable: {node}, port {port}").format(node=result["name"], port=port))
             elif result["state"] == discovery.OTHER:
                 dot.add_css_class("warning")
-                reach.set_title(_("Answers on port {port}, but is no Proxmox VE").format(port=port))
+                if synology_kind:
+                    reach.set_title(_("Answers on port {port}, but is no Synology DSM").format(port=port))
+                else:
+                    reach.set_title(_("Answers on port {port}, but is no Proxmox VE").format(port=port))
             else:
                 dot.add_css_class("error")
                 ports = ", ".join(str(tried) for tried in result.get("tried") or [port])
@@ -1091,7 +1127,7 @@ class Window(Adw.ApplicationWindow):
                 GLib.source_remove(state["timer"])
                 state["timer"] = 0
             state["resolved"] = None
-            typed = server.get_text()
+            typed, wanted = server.get_text(), current["kind"]
             if not core.normalize_host(typed):
                 checking.stop()
                 checking.set_visible(False)
@@ -1105,7 +1141,8 @@ class Window(Adw.ApplicationWindow):
 
             def start():
                 state["timer"] = 0
-                run_async(lambda: discovery.check(typed), lambda result, error: show_reach(result, error, typed))
+                run_async(lambda: discovery.check(typed, kind=wanted),
+                          lambda result, error: wanted == current["kind"] and show_reach(result, error, typed))
                 return False
 
             # Only once typing pauses, not for every letter
@@ -1116,13 +1153,14 @@ class Window(Adw.ApplicationWindow):
             typed = server.get_text()
             if state["resolved"] and state["resolved"][0] == typed:
                 return state["resolved"][1]
-            return core.normalize_host(typed)
+            return core.normalize_host(typed, discovery.PORTS[current["kind"]])
 
         server.connect("changed", check_soon)
-        check_soon()
         known = {account.host for account in core.list_accounts()}
 
-        def discovered(result, error):
+        def discovered(result, error, wanted):
+            if wanted != current["kind"]:
+                return  # a search for the other kind of server
             spinner.stop()
             search.set_sensitive(True)
             servers[:] = result or []
@@ -1133,7 +1171,10 @@ class Window(Adw.ApplicationWindow):
                 label + (" " + _("(already added)") if s["host"] in known else "") for label, s in zip(labels, servers)
             ])
             if error or not servers:
-                found.set_subtitle(_("No Proxmox VE server found in your local networks"))
+                if wanted == core.SYNOLOGY:
+                    found.set_subtitle(_("No Synology NAS found in your local networks"))
+                else:
+                    found.set_subtitle(_("No Proxmox VE server found in your local networks"))
                 return
             found.set_subtitle(_("{count} found").format(count=len(servers)))
             if not server.get_text().strip():
@@ -1145,7 +1186,8 @@ class Window(Adw.ApplicationWindow):
             spinner.start()
             search.set_sensitive(False)
             found.set_subtitle(_("Searching your local networks…"))
-            run_async(discovery.discover, discovered)
+            wanted = current["kind"]
+            run_async(lambda: discovery.discover(kind=wanted), lambda result, error: discovered(result, error, wanted))
 
         def picked(*_args):
             index = found.get_selected()
@@ -1154,50 +1196,78 @@ class Window(Adw.ApplicationWindow):
 
         found.connect("notify::selected", picked)
         search.connect("clicked", search_network)
-        search_network()
 
-        dialog = Adw.MessageDialog(
-            transient_for=self,
-            heading=_("Add account"),
-            body=_(
-                "Create an API token in the web interface under Datacenter → Permissions → API Tokens and copy its "
-                "ID and secret. The secret is kept in the system keyring only."
-            ),
-            extra_child=rows,
-        )
+        dialog = Adw.MessageDialog(transient_for=self, heading=_("Add account"), extra_child=rows)
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("add", _("Add"))
         dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_default_response("add")
 
         def update(*_args):
-            ready = bool(core.normalize_host(server.get_text())) and bool(core.TOKEN_ID.fullmatch(token.get_text().strip()))
+            name = token.get_text().strip()
+            if current["kind"] == core.SYNOLOGY:
+                valid_name = bool(name) and not any(c.isspace() for c in name)
+            else:
+                valid_name = bool(core.TOKEN_ID.fullmatch(name))
+            ready = bool(core.normalize_host(server.get_text())) and valid_name
             dialog.set_response_enabled("add", ready and bool(secret.get_text().strip()))
+
+        def apply_kind(*_args):
+            current["kind"] = kinds[kind_row.get_selected()]
+            if current["kind"] == core.SYNOLOGY:
+                server.set_title(_("NAS address, e.g. nas.example.com"))
+                token.set_title(_("DSM user name"))
+                secret.set_title(_("Password"))
+                dialog.set_body(_(
+                    "Enter a DSM user and its password. A user of its own for Auth-Switch with only the rights it "
+                    "needs is safest. With two-factor sign-in, the code is asked for once. The password is kept "
+                    "in the system keyring only."
+                ))
+            else:
+                server.set_title(_("Server address, e.g. pve.example.com"))
+                token.set_title(_("API token ID, e.g. root@pam!auth-switch"))
+                secret.set_title(_("Secret"))
+                dialog.set_body(_(
+                    "Create an API token in the web interface under Datacenter → Permissions → API Tokens and copy its "
+                    "ID and secret. The secret is kept in the system keyring only."
+                ))
+            update()
+            check_soon()
+            search_network()
 
         def on_response(_dialog, response):
             if response == "add":
-                self.add_account(target_host(), token.get_text().strip(), secret.get_text())
+                self.add_account(target_host(), token.get_text().strip(), secret.get_text(), current["kind"])
 
         web.connect("clicked", lambda *_args: self.open_uri(core.web_interface(target_host())))
         for row in (server, token, secret):
             row.connect("changed", update)
-        update()
+        kind_row.connect("notify::selected", apply_kind)
+        apply_kind()
         dialog.connect("response", on_response)
         dialog.present()
 
-    def add_account(self, host: str, token_id: str, secret: str) -> None:
+    def add_account(self, host: str, token_id: str, secret: str, kind: str = core.PROXMOX) -> None:
         """Check the certificate first; a server without a trusted one needs the user's confirmation."""
 
-        def added(account, error):
+        def added(account, error, fingerprint):
+            if isinstance(error, synology.OtpRequired):
+                self.ask_code(token_id, lambda code: add(fingerprint, code))
+                return
             if error:
                 self.explain(_("Adding failed"), str(error))
                 return
             self.toast(_("Added {token}").format(token=account.token_id), "success")
             self.reload(recheck=True)
-            run_async(lambda: core.fetch_profile(account), lambda profile, _e: self.after_add(account, profile))
+            if kind == core.PROXMOX:
+                run_async(lambda: core.fetch_profile(account), lambda profile, _e: self.after_add(account, profile))
 
-        def add(fingerprint: str = ""):
-            run_async(lambda: core.add_account(host, token_id, secret, fingerprint), added)
+        def add(fingerprint: str = "", code: str = ""):
+            if kind == core.SYNOLOGY:
+                work = lambda: synology.add_account(host, token_id, secret, code, fingerprint)  # noqa: E731
+            else:
+                work = lambda: core.add_account(host, token_id, secret, fingerprint)  # noqa: E731
+            run_async(work, lambda account, error: added(account, error, fingerprint))
 
         def checked(result, error):
             if error:
@@ -1205,7 +1275,7 @@ class Window(Adw.ApplicationWindow):
             elif result is True:
                 add()
             else:
-                self.confirm_certificate(host, result, add)
+                self.confirm_certificate(host, result, add, kind)
 
         def check():
             if core.certificate_trusted(host):
@@ -1214,13 +1284,42 @@ class Window(Adw.ApplicationWindow):
 
         run_async(check, checked)
 
-    def confirm_certificate(self, host: str, fingerprint: str, accept) -> None:
+    def ask_code(self, user: str, then) -> None:
+        """The code of the second sign-in step; afterwards DSM trusts Auth-Switch as a device."""
+        code = Adw.EntryRow(title=_("Code"), input_purpose=Gtk.InputPurpose.DIGITS)
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.append(code)
+        dialog = Adw.MessageDialog(
+            transient_for=self, heading=_("Second sign-in step"), extra_child=rows,
+            body=_(
+                "DSM asks for the code of the authenticator app of {user}. Auth-Switch is then registered as a "
+                "trusted device, so later sign-ins need no code."
+            ).format(user=user),
+        )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("ok", _("Sign in"))
+        dialog.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("ok")
+        code.connect("changed", lambda *_a: dialog.set_response_enabled("ok", code.get_text().strip().isdigit()))
+        dialog.set_response_enabled("ok", False)
+        dialog.connect("response", lambda _d, response: response == "ok" and then(code.get_text().strip()))
+        dialog.present()
+
+    def confirm_certificate(self, host: str, fingerprint: str, accept, kind: str = core.PROXMOX) -> None:
         previous = core.pinned_fingerprint(host)
-        body = _(
-            "The certificate of {host} is not signed by an authority your system trusts, which is normal for "
-            "Proxmox VE. Compare this SHA-256 fingerprint with the one shown under Node → System → Certificates, "
-            "or by 'pvenode cert info' on the server. Only continue if they match."
-        ).format(host=host)
+        if kind == core.SYNOLOGY:
+            body = _(
+                "The certificate of {host} is not signed by an authority your system trusts, which is normal for "
+                "Synology DSM. Compare this SHA-256 fingerprint with the certificate in DSM under Control Panel → "
+                "Security → Certificate. Only continue if they match."
+            ).format(host=host)
+        else:
+            body = _(
+                "The certificate of {host} is not signed by an authority your system trusts, which is normal for "
+                "Proxmox VE. Compare this SHA-256 fingerprint with the one shown under Node → System → Certificates, "
+                "or by 'pvenode cert info' on the server. Only continue if they match."
+            ).format(host=host)
         if previous and previous != fingerprint:
             body = _("Warning: this is not the certificate you confirmed before.") + "\n\n" + body
         label = Gtk.Label(label=fingerprint, wrap=True, selectable=True, max_width_chars=48)
@@ -1829,7 +1928,7 @@ class Window(Adw.ApplicationWindow):
 
         mcp_row = Adw.ActionRow(
             title=_("MCP server"),
-            subtitle=_("Lets AI assistants with MCP support use your Proxmox VE accounts; copy the entry for their configuration"),
+            subtitle=_("Lets AI assistants with MCP support use your Proxmox VE and Synology DSM accounts; copy the entry for their configuration"),
         )
         button = Gtk.Button(label=_("Copy entry"), valign=Gtk.Align.CENTER)
         button.connect("clicked", lambda *_args: self.copy(core.mcp_client_config()))
