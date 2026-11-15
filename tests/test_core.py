@@ -990,15 +990,20 @@ class _DsmHandler(http.server.BaseHTTPRequestHandler):
         fields = dict(urllib.parse.parse_qsl(self.rfile.read(length).decode()))
         _DsmHandler.calls.append(fields)
         api, method = fields.get("api"), fields.get("method")
+        if api == "SYNO.API.Info":
+            return self.answer({"success": True, "data": {"SYNO.API.Auth": {"maxVersion": 7, "path": "entry.cgi"}}})
         if api == "SYNO.API.Auth" and method == "login":
+            if fields.get("session") not in (None, "webui"):
+                # DSM checks the permission for an application of that name.
+                return self.answer({"success": False, "error": {"code": 402}})
             if fields.get("passwd") != self.PASSWORD:
                 return self.answer({"success": False, "error": {"code": 400}})
             if fields.get("account") == "two-step":
                 if fields.get("otp_code") == "123456":
-                    return self.answer({"success": True, "data": {"sid": "sid-1", "did": "device-1"}})
+                    return self.answer({"success": True, "data": {"sid": "sid-1", "synotoken": "tok-1", "device_id": "device-1"}})
                 if fields.get("device_id") != "device-1":
                     return self.answer({"success": False, "error": {"code": 403}})
-            return self.answer({"success": True, "data": {"sid": "sid-1"}})
+            return self.answer({"success": True, "data": {"sid": "sid-1", "synotoken": "tok-1"}})
         if api == "SYNO.API.Auth":
             return self.answer({"success": True})
         if fields.get("_sid") not in self.sessions:
@@ -1006,7 +1011,8 @@ class _DsmHandler(http.server.BaseHTTPRequestHandler):
         if api == "SYNO.DSM.Info":
             return self.answer({"success": True, "data": {"model": "DS920+", "version_string": "DSM 7.2.2-72806"}})
         if api == "SYNO.Core.System":
-            return self.answer({"success": True, "data": {"hostname": "nas", "params": fields.get("additional")}})
+            return self.answer({"success": True, "data": {"hostname": "nas", "params": fields.get("additional"),
+                                                          "token": self.headers.get("X-SYNO-TOKEN")}})
         return self.answer({"success": False, "error": {"code": 102}})
 
     def log_message(self, *_args):
@@ -1054,6 +1060,7 @@ class SynologyTest(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
         synology._sessions.clear()
+        synology._versions.clear()
 
     def test_a_bare_name_means_the_dsm_port(self):
         self.assertEqual(core.normalize_host("nas.example.com", synology.DEFAULT_PORT), "nas.example.com:5001")
@@ -1085,10 +1092,11 @@ class SynologyTest(unittest.TestCase):
 
     def test_calls_open_a_new_session_when_dsm_ended_the_old_one(self):
         account = synology.add_account(self.host, "dana", _DsmHandler.PASSWORD, fingerprint=self.pin)
-        synology._sessions[(self.host, "dana")] = "ended"
+        synology._sessions[(self.host, "dana")] = {"sid": "ended", "token": ""}
         data = synology.call(account, "SYNO.Core.System", "info", 1, {"additional": ["cpu"]})
-        self.assertEqual(data, {"hostname": "nas", "params": '["cpu"]'})
-        self.assertEqual(synology._sessions[(self.host, "dana")], "sid-1")
+        self.assertEqual(data, {"hostname": "nas", "params": '["cpu"]', "token": "tok-1"})
+        self.assertEqual(synology._sessions[(self.host, "dana")]["sid"], "sid-1")
+        self.assertTrue(all(call.get("version") == "7" for call in _DsmHandler.calls if call.get("api") == "SYNO.API.Auth"))
 
     def test_credentials_are_out_of_reach(self):
         account = synology.add_account(self.host, "dana", _DsmHandler.PASSWORD, fingerprint=self.pin)

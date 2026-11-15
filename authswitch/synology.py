@@ -23,7 +23,8 @@ from .i18n import _
 KIND = "synology"
 DEFAULT_PORT = 5001
 DEVICE_NAME = "Auth-Switch"
-AUTH_VERSION = 6
+# The newest sign-in API this code knows; DSM 7 offers 7, DSM 6 offers 6.
+AUTH_VERSION = 7
 # Parts of the API that hand out sessions, passwords or second factors are not available as tools.
 BLOCKED_APIS = re.compile(r"^SYNO\.(API\.Auth|API\.OTP|Core\.OTP|Core\.User\.PasswordConfirm|Core\.User\.PasswordExpiry)(\.|$)")
 # Methods that only read; anything else counts as a change.
@@ -31,7 +32,9 @@ READ_METHOD = re.compile(r"^(get|list|query|info|getinfo|status|load|search|chec
 # DSM answers these when a session has ended; the call is repeated with a new session.
 SESSION_ERRORS = {105, 106, 107, 119}
 
-_sessions: dict[tuple[str, str], str] = {}
+# (host, user) -> {"sid", "token"}; the SynoToken goes along as a header, some changes need it.
+_sessions: dict[tuple[str, str], dict] = {}
+_versions: dict[str, int] = {}
 _lock = threading.Lock()
 
 
@@ -66,17 +69,19 @@ def _error(code: int, api: str) -> core.AuthError:
     return core.AuthError(text)
 
 
-def _post(host: str, fields: dict, fingerprint: str | None = None) -> dict:
-    """POST to ``/webapi/entry.cgi`` and return the answer of DSM as a dict."""
+def _post(host: str, fields: dict, fingerprint: str | None = None, token: str = "", path: str = "/webapi/entry.cgi") -> dict:
+    """POST to the DSM Web API and return the answer of DSM as a dict."""
     body = urllib.parse.urlencode({key: value for key, value in fields.items() if value not in (None, "")}).encode()
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
         "Accept": "application/json",
         "User-Agent": f"{core.APP}/{__version__}",
     }
+    if token:
+        headers["X-SYNO-TOKEN"] = token
     connection = core._Connection(host, core.pinned_fingerprint(host) if fingerprint is None else fingerprint)
     try:
-        connection.request("POST", "/webapi/entry.cgi", body=body, headers=headers)
+        connection.request("POST", path, body=body, headers=headers)
         response = connection.getresponse()
         text = response.read().decode("utf-8", "replace")
     except ssl.SSLCertVerificationError:
@@ -97,11 +102,25 @@ def _post(host: str, fields: dict, fingerprint: str | None = None) -> dict:
     return answer
 
 
+def _auth_version(host: str, fingerprint: str | None = None) -> int:
+    """The newest sign-in API version DSM offers, up to the one this code knows."""
+    if host not in _versions:
+        try:
+            answer = _post(host, {"api": "SYNO.API.Info", "version": 1, "method": "query", "query": "SYNO.API.Auth"},
+                           fingerprint, path="/webapi/query.cgi")
+            newest = int(((answer.get("data") or {}).get("SYNO.API.Auth") or {}).get("maxVersion") or 6)
+        except (core.AuthError, TypeError, ValueError):
+            newest = 6
+        _versions[host] = max(3, min(newest, AUTH_VERSION))
+    return _versions[host]
+
+
 def login(host: str, user: str, password: str, otp: str = "", device: str = "", fingerprint: str | None = None) -> dict:
-    """Open a session; returns ``{"sid", "device"}``, where ``device`` is a new device token after a code."""
+    """Open a session; returns ``{"sid", "token", "device"}``, where ``device`` is a new device token after a code."""
+    # No "session" field: DSM would check the user's permission for an application of that name.
     fields = {
-        "api": "SYNO.API.Auth", "version": AUTH_VERSION, "method": "login", "account": user, "passwd": password,
-        "session": core.APP, "format": "sid",
+        "api": "SYNO.API.Auth", "version": _auth_version(host, fingerprint), "method": "login", "account": user,
+        "passwd": password, "format": "sid", "enable_syno_token": "yes",
     }
     if otp:
         fields.update(otp_code=otp, enable_device_token="yes", device_name=DEVICE_NAME)
@@ -111,12 +130,17 @@ def login(host: str, user: str, password: str, otp: str = "", device: str = "", 
     if not answer["success"]:
         raise _error(int((answer.get("error") or {}).get("code") or 0), "SYNO.API.Auth")
     data = answer.get("data") or {}
-    return {"sid": str(data.get("sid") or ""), "device": str(data.get("did") or data.get("device_id") or "")}
+    return {
+        "sid": str(data.get("sid") or ""),
+        "token": str(data.get("synotoken") or ""),
+        # DSM 7 names the device token device_id, DSM 6 did.
+        "device": str(data.get("device_id") or data.get("did") or ""),
+    }
 
 
 def logout(host: str, sid: str, fingerprint: str | None = None) -> None:
     try:
-        _post(host, {"api": "SYNO.API.Auth", "version": AUTH_VERSION, "method": "logout", "session": core.APP, "_sid": sid}, fingerprint)
+        _post(host, {"api": "SYNO.API.Auth", "version": _auth_version(host, fingerprint), "method": "logout", "_sid": sid}, fingerprint)
     except core.AuthError:
         pass
 
@@ -196,8 +220,8 @@ def call(account: core.Account, api: str, method: str, version: int, params: dic
         fields.pop(reserved, None)
     fields.update(api=api, method=method, version=int(version))
     for attempt in range(2):
-        sid = _session(account, fresh=attempt > 0)
-        answer = _post(account.host, {**fields, "_sid": sid})
+        session = _session(account, fresh=attempt > 0)
+        answer = _post(account.host, {**fields, "_sid": session["sid"]}, token=session["token"])
         if answer["success"]:
             return answer.get("data")
         code = int((answer.get("error") or {}).get("code") or 0)
@@ -206,7 +230,7 @@ def call(account: core.Account, api: str, method: str, version: int, params: dic
     raise core.AuthError(_("The DSM session has ended."))
 
 
-def _session(account: core.Account, fresh: bool = False) -> str:
+def _session(account: core.Account, fresh: bool = False) -> dict:
     key = (account.host, account.token_id)
     with _lock:
         if fresh:
@@ -218,7 +242,7 @@ def _session(account: core.Account, fresh: bool = False) -> str:
             except core.AuthError:
                 device = ""
             try:
-                _sessions[key] = login(account.host, account.token_id, password, device=device)["sid"]
+                _sessions[key] = login(account.host, account.token_id, password, device=device)
             except OtpRequired:
                 raise core.AuthError(_(
                     "DSM asks for a code of the second sign-in step for {user}; add the account again in Auth-Switch."
@@ -229,9 +253,9 @@ def _session(account: core.Account, fresh: bool = False) -> str:
 def forget(account: core.Account) -> None:
     """Remove the account's device token from the keyring and drop its session."""
     with _lock:
-        sid = _sessions.pop((account.host, account.token_id), None)
-    if sid:
-        logout(account.host, sid)
+        session = _sessions.pop((account.host, account.token_id), None)
+    if session:
+        logout(account.host, session["sid"])
     core.clear_secret(account.host, device_key(account.token_id))
 
 
