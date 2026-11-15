@@ -64,14 +64,14 @@ Schlüsselbund (GNOME Keyring, KWallet o. Ä.).
 [Release-Seite](../../releases) herunterladen und installieren:
 
 ```bash
-sudo apt install ./auth-switch_0.4.11_all.deb
+sudo apt install ./auth-switch_0.4.12_all.deb
 ```
 
 **Andere Distributionen** – PyGObject, GTK 4, libadwaita und libsecret über den
 Paketmanager installieren, dann:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.11-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.12-py3-none-any.whl
 ```
 
 ## Konto hinzufügen

@@ -150,8 +150,10 @@ def device_key(user: str) -> str:
     return f"{user}#device"
 
 
-def _info(host: str, sid: str, fingerprint: str | None = None) -> dict:
-    answer = _post(host, {"api": "SYNO.DSM.Info", "version": 2, "method": "getinfo", "_sid": sid}, fingerprint)
+def _info(host: str, session: dict, fingerprint: str | None = None) -> dict:
+    # DSM 7.4 answers a session that asked for a SynoToken only when the token comes along.
+    answer = _post(host, {"api": "SYNO.DSM.Info", "version": 2, "method": "getinfo", "_sid": session["sid"]},
+                   fingerprint, token=session["token"])
     return (answer.get("data") or {}) if answer["success"] else {}
 
 
@@ -169,7 +171,7 @@ def validate(host: str, user: str, password: str, otp: str = "", fingerprint: st
         rejected = str(error) in (_messages()[400], _messages()[401], _messages()[402])
         return core.Profile(valid=False if rejected else None, detail=str(error)), ""
     try:
-        info = _info(host, session["sid"], fingerprint)
+        info = _info(host, session, fingerprint)
     finally:
         logout(host, session["sid"], fingerprint)
     version = str(info.get("version_string") or "").removeprefix("DSM ").strip()

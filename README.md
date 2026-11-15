@@ -61,14 +61,14 @@ keyring (GNOME Keyring, KWallet or similar).
 [releases page](../../releases) and install it:
 
 ```bash
-sudo apt install ./auth-switch_0.4.11_all.deb
+sudo apt install ./auth-switch_0.4.12_all.deb
 ```
 
 **Other distributions** – install PyGObject, GTK 4, libadwaita and libsecret
 from your package manager, then:
 
 ```bash
-pipx install --system-site-packages auth_switch-0.4.11-py3-none-any.whl
+pipx install --system-site-packages auth_switch-0.4.12-py3-none-any.whl
 ```
 
 ## Adding an account

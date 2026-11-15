@@ -1009,6 +1009,9 @@ class _DsmHandler(http.server.BaseHTTPRequestHandler):
         if fields.get("_sid") not in self.sessions:
             return self.answer({"success": False, "error": {"code": 119}})
         if api == "SYNO.DSM.Info":
+            if self.headers.get("X-SYNO-TOKEN") != "tok-1":
+                # Like DSM 7.4: a session with a SynoToken is answered only together with the token.
+                return self.answer({"success": False, "error": {"code": 105}})
             return self.answer({"success": True, "data": {"model": "DS920+", "version_string": "DSM 7.2.2-72806"}})
         if api == "SYNO.Core.System":
             return self.answer({"success": True, "data": {"hostname": "nas", "params": fields.get("additional"),
